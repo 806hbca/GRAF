@@ -281,6 +281,107 @@ function closeOptionsMenuHelper() {
     document.removeEventListener('click', closeOptionsMenu);
 }
 
+// В app.js добавьте:
+
+let selectedMSTAlgorithm = 'kruskal';
+
+function showMSTMenu() {
+    closeOptionsMenuHelper();
+    
+    const menu = document.getElementById('mstMenu');
+    menu.style.display = 'block';
+    
+    const rect = menu.getBoundingClientRect();
+    menu.style.left = (window.innerWidth - rect.width) / 2 + 'px';
+    menu.style.top = (window.innerHeight - rect.height) / 2 + 'px';
+    
+    setTimeout(() => {
+        document.addEventListener('click', closeMSTMenu);
+    }, 100);
+}
+
+function closeMSTMenu(e) {
+    const menu = document.getElementById('mstMenu');
+    if (!menu.contains(e.target)) {
+        menu.style.display = 'none';
+        document.removeEventListener('click', closeMSTMenu);
+    }
+}
+
+function selectMSTAlgorithm(type) {
+    selectedMSTAlgorithm = type;
+    
+    document.querySelectorAll('#mstMenu .traversal-option').forEach(opt => {
+        opt.classList.remove('selected');
+    });
+    document.querySelector(`#mstMenu [data-type="${type}"]`).classList.add('selected');
+}
+
+async function runMST() {
+    const menu = document.getElementById('mstMenu');
+    menu.style.display = 'none';
+    document.removeEventListener('click', closeMSTMenu);
+    
+    if (!currentGraphData) return showStatus('Сначала постройте граф', true);
+    
+    try {
+        showStatus('Построение минимального остовного дерева...');
+        
+        let result;
+        if (selectedMSTAlgorithm === 'kruskal') {
+            result = await window.cpp.kruskalMST();
+            showAlgorithmResult(`MST (Краскал): ${result.edges.length} ребер, общий вес: ${result.totalWeight.toFixed(2)}`);
+        } else {
+            result = await window.cpp.primMST();
+            showAlgorithmResult(`MST (Прим): ${result.edges.length} ребер, общий вес: ${result.totalWeight.toFixed(2)}`);
+        }
+        
+        // Подсвечиваем ребра MST
+        highlightMSTEdges(result);
+        
+    } catch (e) {
+        showStatus('Ошибка: ' + e.message, true);
+    }
+}
+
+function highlightMSTEdges(mstResult) {
+    if (!currentGraphData) return;
+    
+    // Создаем путь из ребер MST для подсветки
+    const path = [];
+    const visited = new Set();
+    
+    // Начинаем с первого ребра
+    if (mstResult.edges.length > 0) {
+        const firstEdge = mstResult.edges[0];
+        path.push(firstEdge.from);
+        path.push(firstEdge.to);
+        visited.add(firstEdge.from);
+        visited.add(firstEdge.to);
+        
+        // Добавляем остальные ребра
+        let changed = true;
+        while (changed) {
+            changed = false;
+            for (const edge of mstResult.edges) {
+                if (visited.has(edge.from) && !visited.has(edge.to)) {
+                    path.push(edge.to);
+                    visited.add(edge.to);
+                    changed = true;
+                } else if (visited.has(edge.to) && !visited.has(edge.from)) {
+                    path.push(edge.from);
+                    visited.add(edge.from);
+                    changed = true;
+                }
+            }
+        }
+    }
+    
+    graphCanvas.highlightPath(path);
+}
+
+ 
+
 // Инициализация обработчиков событий для popup меню
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('traversalMenu').addEventListener('click', (e) => {
@@ -288,6 +389,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     document.getElementById('optionsMenu').addEventListener('click', (e) => {
+        e.stopPropagation();
+    });
+    document.getElementById('mstMenu').addEventListener('click', (e) => {
         e.stopPropagation();
     });
 });

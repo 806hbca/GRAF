@@ -103,6 +103,14 @@
     <div id="optionsMenu" class="popup-menu" style="display: none;">
         <h3>Дополнительные опции</h3>
         
+        <div class="option-item" onclick="showMSTMenu()">
+            <div class="option-icon">🌲</div>
+            <div class="option-info">
+                <div class="option-title">Минимальное остовное дерево</div>
+                <div class="option-desc">Построить MST (Краскал или Прим)</div>
+            </div>
+        </div>
+
         <div class="option-item" onclick="checkEulerianGraph()">
             <div class="option-icon">🔍</div>
             <div class="option-info">
@@ -126,6 +134,29 @@
                 <div class="option-desc">Решает TSP методом ветвей и границ</div>
             </div>
         </div>
+    </div>
+    
+
+    <div id="mstMenu" class="popup-menu" style="display: none;">
+        <h3>Выберите алгоритм MST</h3>
+        
+        <div class="traversal-option selected" data-type="kruskal" onclick="selectMSTAlgorithm('kruskal')">
+            <div class="traversal-icon bfs-icon">🔗</div>
+            <div class="traversal-info">
+                <div class="traversal-title">Алгоритм Краскала</div>
+                <div class="traversal-desc">Сортировка ребер и система непересекающихся множеств</div>
+            </div>
+        </div>
+        
+        <div class="traversal-option" data-type="prim" onclick="selectMSTAlgorithm('prim')">
+            <div class="traversal-icon dfs-icon">⭐</div>
+            <div class="traversal-info">
+                <div class="traversal-title">Алгоритм Прима</div>
+                <div class="traversal-desc">Построение от вершины с минимальным ребром</div>
+            </div>
+        </div>
+        
+        <button onclick="runMST()" style="width: 100%; margin-top: 15px;">▶ Построить MST</button>
     </div>
 
     <script src="graph-canvas.js"></script>

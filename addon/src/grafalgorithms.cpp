@@ -8,6 +8,7 @@
 #include <queue>
 #include <limits>
 #include <stack>
+#include <functional>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -478,6 +479,158 @@ public:
         return true;
     }
 
+    struct Edge
+    {
+        int from;
+        int to;
+        double weight;
+    };
+
+    std::vector<Edge> kruskalMST()
+    {
+        std::vector<Edge> mst;
+        if (numVertices == 0)
+            return mst;
+
+        // Собираем все ребра
+        std::vector<Edge> allEdges;
+        for (int i = 0; i < numVertices; i++)
+        {
+            for (const auto &neighbor : adjacencyList[i])
+            {
+                if (i < neighbor.vertex)
+                {
+                    allEdges.push_back({i, neighbor.vertex, neighbor.weight});
+                }
+            }
+        }
+
+        // Сортируем ребра по весу
+        std::sort(allEdges.begin(), allEdges.end(),
+                  [](const Edge &a, const Edge &b)
+                  { return a.weight < b.weight; });
+
+        // Система непересекающихся множеств (DSU)
+        std::vector<int> parent(numVertices);
+        std::vector<int> rank(numVertices, 0);
+        for (int i = 0; i < numVertices; i++)
+        {
+            parent[i] = i;
+        }
+
+        // Находим корень множества (используем std::function для рекурсии)
+        std::function<int(int)> find = [&](int x) -> int
+        {
+            if (parent[x] != x)
+            {
+                parent[x] = find(parent[x]);
+            }
+            return parent[x];
+        };
+
+        // Объединяем множества
+        auto unite = [&](int x, int y) -> bool
+        {
+            int rootX = find(x);
+            int rootY = find(y);
+
+            if (rootX != rootY)
+            {
+                if (rank[rootX] < rank[rootY])
+                {
+                    parent[rootX] = rootY;
+                }
+                else if (rank[rootX] > rank[rootY])
+                {
+                    parent[rootY] = rootX;
+                }
+                else
+                {
+                    parent[rootY] = rootX;
+                    rank[rootX]++;
+                }
+                return true;
+            }
+            return false;
+        };
+
+        // Строим MST
+        for (const auto &edge : allEdges)
+        {
+            if (unite(edge.from, edge.to))
+            {
+                mst.push_back(edge);
+                if (mst.size() == numVertices - 1)
+                    break;
+            }
+        }
+
+        return mst;
+    }
+
+    // Алгоритм Прима для построения минимального остовного дерева
+    std::vector<Edge> primMST()
+    {
+        std::vector<Edge> mst;
+        if (numVertices == 0)
+            return mst;
+
+        std::vector<bool> inMST(numVertices, false);
+        std::vector<double> minWeight(numVertices, std::numeric_limits<double>::infinity());
+        std::vector<int> parent(numVertices, -1);
+
+        // Начинаем с вершины 0
+        minWeight[0] = 0;
+
+        for (int i = 0; i < numVertices; i++)
+        {
+            // Находим вершину с минимальным весом
+            int u = -1;
+            double minVal = std::numeric_limits<double>::infinity();
+
+            for (int j = 0; j < numVertices; j++)
+            {
+                if (!inMST[j] && minWeight[j] < minVal)
+                {
+                    minVal = minWeight[j];
+                    u = j;
+                }
+            }
+
+            if (u == -1)
+                break; // Несвязный граф
+
+            inMST[u] = true;
+
+            // Добавляем ребро в MST (кроме начальной вершины)
+            if (parent[u] != -1)
+            {
+                double weight = 0;
+                for (const auto &neighbor : adjacencyList[u])
+                {
+                    if (neighbor.vertex == parent[u])
+                    {
+                        weight = neighbor.weight;
+                        break;
+                    }
+                }
+                mst.push_back({parent[u], u, weight});
+            }
+
+            // Обновляем минимальные веса для соседей
+            for (const auto &neighbor : adjacencyList[u])
+            {
+                if (!inMST[neighbor.vertex] && neighbor.weight < minWeight[neighbor.vertex])
+                {
+                    minWeight[neighbor.vertex] = neighbor.weight;
+                    parent[neighbor.vertex] = u;
+                }
+            }
+        }
+
+        return mst;
+    }
+
     std::vector<std::pair<double, double>> calculateVertexPositions(double centerX, double centerY, double radius)
     {
         std::vector<std::pair<double, double>> positions;
@@ -845,6 +998,114 @@ Napi::Value CheckConnectivity(const Napi::CallbackInfo &info)
 
     return Napi::Boolean::New(env, graf.isConnected());
 }
+// Построение MST алгоритмом Краскала
+Napi::Value KruskalMST(const Napi::CallbackInfo &info)
+{
+    Napi::Env env = info.Env();
+
+    if (info.Length() < 1 || !info[0].IsArray())
+    {
+        Napi::TypeError::New(env, "Expected adjacency matrix").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    Napi::Array matrixArray = info[0].As<Napi::Array>();
+    int n = matrixArray.Length();
+
+    std::vector<std::vector<double>> matrix(n, std::vector<double>(n, 0));
+    for (int i = 0; i < n; i++)
+    {
+        Napi::Array row = matrixArray.Get(i).As<Napi::Array>();
+        for (int j = 0; j < n; j++)
+        {
+            matrix[i][j] = row.Get(j).As<Napi::Number>().DoubleValue();
+        }
+    }
+
+    GRAF graf;
+    graf.buildFromMatrix(matrix);
+
+    auto mst = graf.kruskalMST();
+
+    Napi::Object result = Napi::Object::New(env);
+
+    Napi::Array edgesArray = Napi::Array::New(env, mst.size());
+    for (size_t i = 0; i < mst.size(); i++)
+    {
+        Napi::Object edge = Napi::Object::New(env);
+        edge.Set("from", mst[i].from);
+        edge.Set("to", mst[i].to);
+        edge.Set("weight", mst[i].weight);
+        edgesArray.Set(i, edge);
+    }
+
+    result.Set("edges", edgesArray);
+    result.Set("numVertices", n);
+
+    // Вычисляем общий вес MST
+    double totalWeight = 0;
+    for (const auto &edge : mst)
+    {
+        totalWeight += edge.weight;
+    }
+    result.Set("totalWeight", totalWeight);
+
+    return result;
+}
+
+// Построение MST алгоритмом Прима
+Napi::Value PrimMST(const Napi::CallbackInfo &info)
+{
+    Napi::Env env = info.Env();
+
+    if (info.Length() < 1 || !info[0].IsArray())
+    {
+        Napi::TypeError::New(env, "Expected adjacency matrix").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    Napi::Array matrixArray = info[0].As<Napi::Array>();
+    int n = matrixArray.Length();
+
+    std::vector<std::vector<double>> matrix(n, std::vector<double>(n, 0));
+    for (int i = 0; i < n; i++)
+    {
+        Napi::Array row = matrixArray.Get(i).As<Napi::Array>();
+        for (int j = 0; j < n; j++)
+        {
+            matrix[i][j] = row.Get(j).As<Napi::Number>().DoubleValue();
+        }
+    }
+
+    GRAF graf;
+    graf.buildFromMatrix(matrix);
+
+    auto mst = graf.primMST();
+
+    Napi::Object result = Napi::Object::New(env);
+
+    Napi::Array edgesArray = Napi::Array::New(env, mst.size());
+    for (size_t i = 0; i < mst.size(); i++)
+    {
+        Napi::Object edge = Napi::Object::New(env);
+        edge.Set("from", mst[i].from);
+        edge.Set("to", mst[i].to);
+        edge.Set("weight", mst[i].weight);
+        edgesArray.Set(i, edge);
+    }
+
+    result.Set("edges", edgesArray);
+    result.Set("numVertices", n);
+
+    double totalWeight = 0;
+    for (const auto &edge : mst)
+    {
+        totalWeight += edge.weight;
+    }
+    result.Set("totalWeight", totalWeight);
+
+    return result;
+}
 
 // Регистрация функций
 Napi::Object Init(Napi::Env env, Napi::Object exports)
@@ -857,6 +1118,8 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
     exports.Set("isEulerian", Napi::Function::New(env, CheckEulerian));
     exports.Set("findEulerianCycle", Napi::Function::New(env, FindEulerianCycle));
     exports.Set("solveTSP", Napi::Function::New(env, SolveTSP));
+    exports.Set("kruskalMST", Napi::Function::New(env, KruskalMST));
+    exports.Set("primMST", Napi::Function::New(env, PrimMST));
     return exports;
 }
 

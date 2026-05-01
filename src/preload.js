@@ -9,7 +9,9 @@ contextBridge.exposeInMainWorld('cpp', {
     checkConnectivity: () => ipcRenderer.invoke('check-connectivity'),
     checkEulerian: () => ipcRenderer.invoke('check-eulerian'),
     findEulerianCycle: () => ipcRenderer.invoke('find-eulerian-cycle'),
-    solveTSP: () => ipcRenderer.invoke('solve-tsp')
+    solveTSP: () => ipcRenderer.invoke('solve-tsp'),
+    kruskalMST: () => ipcRenderer.invoke('kruskal-mst'),
+    primMST: () => ipcRenderer.invoke('prim-mst')
 })
 
 contextBridge.exposeInMainWorld('electron', {

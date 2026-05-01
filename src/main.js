@@ -3,6 +3,7 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron')
 const path = require('path')
 const fs = require('fs')
 
+// Проверяем загрузку addon
 let addon;
 try {
     addon = require('../addon/build/Release/grafalgorithms')
@@ -10,6 +11,7 @@ try {
     console.log('Available functions:', Object.keys(addon))
 } catch (error) {
     console.error('Failed to load addon:', error)
+    console.error('Make sure to build the addon first: npm run build-addon')
 }
 
 let win
@@ -32,6 +34,7 @@ function createWindow() {
 function registerIpcHandlers() {
     // Построение графа
     ipcMain.handle('build-graph', async (event, matrix) => {
+        console.log('build-graph called')
         if (!addon) throw new Error('Addon not loaded')
         currentMatrix = matrix
         return addon.buildGraph(matrix)
@@ -77,6 +80,18 @@ function registerIpcHandlers() {
     ipcMain.handle('solve-tsp', async () => {
         if (!addon || !currentMatrix) throw new Error('Addon or matrix not available')
         return addon.solveTSP(currentMatrix)
+    })
+
+    // MST алгоритм Краскала
+    ipcMain.handle('kruskal-mst', async () => {
+        if (!addon || !currentMatrix) throw new Error('Addon or matrix not available')
+        return addon.kruskalMST(currentMatrix)
+    })
+
+    // MST алгоритм Прима
+    ipcMain.handle('prim-mst', async () => {
+        if (!addon || !currentMatrix) throw new Error('Addon or matrix not available')
+        return addon.primMST(currentMatrix)
     })
 
     // Открытие файла
