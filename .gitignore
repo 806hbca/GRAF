@@ -1,0 +1,55 @@
+# .gitignore
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Electron
+dist/
+out/
+
+# Скомпилированные файлы addon
+addon/build/
+addon/node_modules/
+*.node
+
+# Файлы блокировки (опционально, можно оставить если нужно)
+# package-lock.json
+# yarn.lock
+
+# IDE и редакторы
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Временные файлы
+*.tmp
+*.temp
+*.log
+*.sublime-workspace
+
+# Системные файлы
+Desktop.ini
+$RECYCLE.BIN/
+
+# Файлы окружения
+.env
+.env.local
+.env.*.local
+
+# Кэш
+.cache/
+*.tsbuildinfo
+
+# Сборка
+*.pyc
+__pycache__/
+
+# Тестовые матрицы графов (опционально)
+# test-matrices/

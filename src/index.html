@@ -1,50 +1,490 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Тест</title>
+    <title>Визуализация графа</title>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
         body { 
             background: #1e1e2e; 
-            color: white; 
-            font-family: sans-serif;
-            padding: 40px;
+            color: #cdd6f4; 
+            font-family: 'Segoe UI', sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
+        
+        .controls {
+            background: #181825;
+            padding: 15px;
+            border-bottom: 2px solid #313244;
+        }
+        
+        .control-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
         button {
-            padding: 15px 30px;
-            font-size: 18px;
+            padding: 10px 20px;
+            font-size: 13px;
             background: #89b4fa;
+            color: #1e1e2e;
             border: none;
-            border-radius: 8px;
+            border-radius: 6px;
             cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+        
+        button:hover {
+            background: #74c7ec;
+            transform: translateY(-1px);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button.danger {
+            background: #f38ba8;
+        }
+        
+        button.success {
+            background: #a6e3a1;
+        }
+        
+        button.warning {
+            background: #f9e2af;
+        }
+        
+        input[type="number"] {
+            width: 70px;
+            padding: 8px;
+            background: #313244;
+            border: 1px solid #45475a;
+            border-radius: 4px;
+            color: #cdd6f4;
+            font-size: 13px;
+        }
+        
+        label {
+            font-size: 13px;
+            color: #a6adc8;
+        }
+        
+        .algorithm-result {
+            margin-top: 10px;
+            padding: 10px;
+            background: #313244;
+            border-radius: 6px;
+            font-size: 13px;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+        
+        #canvas-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        canvas {
+            background: #1e1e2e;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal-content {
+            background: #313244;
+            padding: 30px;
+            border-radius: 12px;
+            min-width: 400px;
+        }
+        
+        .modal-content h3 {
+            margin-bottom: 20px;
+            color: #89b4fa;
+        }
+        
+        .modal-content textarea {
+            width: 100%;
+            height: 200px;
+            background: #45475a;
+            color: #cdd6f4;
+            border: 1px solid #585b70;
+            border-radius: 6px;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            margin-bottom: 15px;
+        }
+        
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        
+        .vertex-highlighted {
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { r: 25; }
+            50% { r: 30; }
+            100% { r: 25; }
         }
     </style>
 </head>
 <body>
-    <h1>Тест работает!</h1>
-    <input id="inputVal" type="number" value="3.14" /><br><br>
-    <button id="btn">Вычислить (C++)</button>
-    <div id="status" style="margin-top:20px; color: #f38ba8;"></div>
-    <div id="result" style="margin-top:10px; font-size:24px; color: #a6e3a1;"></div>
+    <div class="controls">
+        <div class="control-row">
+            <button onclick="showManualInput()">Ввести граф вручную</button>
+            <button class="success" onclick="loadFromFile()">Загрузить из файла</button>
+            <button class="danger" onclick="clearGraph()">Очистить</button>
+        </div>
+        
+        <div class="control-row">
+            <label>Алгоритмы:</label>
+            <label>BFS от:</label>
+            <input type="number" id="bfsStart" value="0" min="0">
+            <button onclick="runBFS()">Запустить BFS</button>
+            
+            <label>DFS от:</label>
+            <input type="number" id="dfsStart" value="0" min="0">
+            <button onclick="runDFS()">Запустить DFS</button>
+            
+            <label>Путь от:</label>
+            <input type="number" id="pathStart" value="0" min="0">
+            <label>до:</label>
+            <input type="number" id="pathEnd" value="1" min="0">
+            <button class="warning" onclick="findPath()">Кратчайший путь</button>
+            
+            <button onclick="checkConnectivity()">Проверить связность</button>
+        </div>
+        
+        <div id="algorithmResult" class="algorithm-result" style="display: none;"></div>
+        <div id="status" style="margin-top: 5px; font-size: 13px;"></div>
+    </div>
+    
+    <div id="canvas-container">
+        <canvas id="graphCanvas"></canvas>
+    </div>
+    
+    <div id="inputModal" class="modal">
+        <div class="modal-content">
+            <h3>Введите матрицу смежности</h3>
+            <p style="margin-bottom: 10px; color: #a6adc8;">
+                Пример квадратной матрицы:<br>
+                0 1 0 1<br>
+                1 0 1 0<br>
+                0 1 0 1<br>
+                1 0 1 0
+            </p>
+            <textarea id="matrixInput" placeholder="Введите матрицу..."></textarea>
+            <div class="modal-buttons">
+                <button onclick="closeModal()" style="background: #6c7086;">Отмена</button>
+                <button onclick="submitMatrix()" class="success">Построить граф</button>
+            </div>
+        </div>
+    </div>
 
     <script>
-        console.log('HTML загрузился!')
-        console.log('window.cpp =', window.cpp)
-
-        document.getElementById('btn').addEventListener('click', async () => {
-            const val = parseFloat(document.getElementById('inputVal').value)
-            document.getElementById('status').textContent = 'Считаю...'
-
+        const canvas = document.getElementById('graphCanvas');
+        let currentGraphData = null;
+        let currentMatrix = null;
+        
+        function resizeCanvas() {
+            const container = document.getElementById('canvas-container');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            if (currentGraphData) drawGraph(currentGraphData);
+        }
+        
+        window.addEventListener('resize', resizeCanvas);
+        
+        function showManualInput() {
+            document.getElementById('inputModal').style.display = 'flex';
+            document.getElementById('matrixInput').focus();
+        }
+        
+        function closeModal() {
+            document.getElementById('inputModal').style.display = 'none';
+        }
+        
+        document.getElementById('inputModal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal();
+        });
+        
+        async function loadFromFile() {
             try {
-                const start = performance.now()
-                const result = await window.cpp.calculate(val)
-                const elapsed = (performance.now() - start).toFixed(1)
-                document.getElementById('status').textContent = `Готово за ${elapsed}ms`
-                document.getElementById('result').textContent = `Результат: ${result.toFixed(6)}`
-            } catch(e) {
-                document.getElementById('status').textContent = 'Ошибка: ' + e.message
-                console.error(e)
+                showStatus('Открытие файла...');
+                const result = await window.electron.openFile();
+                if (result) {
+                    document.getElementById('matrixInput').value = result.content;
+                    parseAndBuildGraph(result.content);
+                }
+            } catch (e) {
+                showStatus('Ошибка: ' + e.message, true);
             }
-        })
+        }
+        
+        function parseAndBuildGraph(content) {
+            try {
+                const lines = content.trim().split('\n');
+                const matrix = [];
+                
+                for (let line of lines) {
+                    line = line.trim();
+                    if (line) {
+                        const row = line.split(/\s+/).map(Number);
+                        if (row.some(isNaN)) throw new Error('Все значения должны быть числами');
+                        matrix.push(row);
+                    }
+                }
+                
+                const n = matrix.length;
+                for (let i = 0; i < n; i++) {
+                    if (matrix[i].length !== n) throw new Error('Матрица должна быть квадратной');
+                }
+                
+                currentMatrix = matrix;
+                buildGraph(matrix);
+                
+            } catch (e) {
+                showStatus('Ошибка: ' + e.message, true);
+            }
+        }
+        
+        async function submitMatrix() {
+            const input = document.getElementById('matrixInput').value;
+            if (input.trim()) {
+                parseAndBuildGraph(input);
+                closeModal();
+            }
+        }
+        
+        async function buildGraph(matrix) {
+            try {
+                showStatus('Построение графа...');
+                currentGraphData = await window.cpp.buildGraph(matrix);
+                resizeCanvas();
+                drawGraph(currentGraphData);
+                showStatus(`Граф: ${currentGraphData.numVertices} вершин, ${currentGraphData.edges.length} рёбер`);
+            } catch (e) {
+                showStatus('Ошибка: ' + e.message, true);
+            }
+        }
+        
+        async function runBFS() {
+            if (!currentGraphData) return showStatus('Сначала постройте граф', true);
+            const startVertex = parseInt(document.getElementById('bfsStart').value);
+            
+            try {
+                const result = await window.cpp.runBFS(startVertex);
+                showAlgorithmResult('BFS обход: ' + result.join(' → '));
+                highlightVertices(result);
+            } catch (e) {
+                showStatus('Ошибка BFS: ' + e.message, true);
+            }
+        }
+        
+        async function runDFS() {
+            if (!currentGraphData) return showStatus('Сначала постройте граф', true);
+            const startVertex = parseInt(document.getElementById('dfsStart').value);
+            
+            try {
+                const result = await window.cpp.runDFS(startVertex);
+                showAlgorithmResult('DFS обход: ' + result.join(' → '));
+                highlightVertices(result);
+            } catch (e) {
+                showStatus('Ошибка DFS: ' + e.message, true);
+            }
+        }
+        
+        async function findPath() {
+            if (!currentGraphData) return showStatus('Сначала постройте граф', true);
+            const start = parseInt(document.getElementById('pathStart').value);
+            const end = parseInt(document.getElementById('pathEnd').value);
+            
+            try {
+                const path = await window.cpp.findShortestPath(start, end);
+                if (path.length > 0) {
+                    showAlgorithmResult(`Кратчайший путь ${start}→${end}: ${path.join(' → ')}`);
+                    highlightPath(path);
+                } else {
+                    showAlgorithmResult('Путь не найден');
+                }
+            } catch (e) {
+                showStatus('Ошибка: ' + e.message, true);
+            }
+        }
+        
+        async function checkConnectivity() {
+            if (!currentGraphData) return showStatus('Сначала постройте граф', true);
+            
+            try {
+                const connected = await window.cpp.checkConnectivity();
+                showAlgorithmResult(connected ? 'Граф связный' : 'Граф не связный');
+            } catch (e) {
+                showStatus('Ошибка: ' + e.message, true);
+            }
+        }
+        
+        function drawGraph(graphData) {
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const { vertices, edges } = graphData;
+            const offsetX = (canvas.width - 900) / 2 + 225;
+            const offsetY = (canvas.height - 600) / 2 + 150;
+            
+            // Рисуем рёбра
+            ctx.strokeStyle = '#89b4fa';
+            ctx.lineWidth = 2;
+            
+            for (let edge of edges) {
+                const from = vertices[edge.from];
+                const to = vertices[edge.to];
+                if (!from || !to) continue;
+                
+                ctx.beginPath();
+                ctx.moveTo(from.x + offsetX, from.y + offsetY);
+                ctx.lineTo(to.x + offsetX, to.y + offsetY);
+                ctx.stroke();
+                
+                if (edge.weight !== 1) {
+                    const midX = (from.x + to.x) / 2 + offsetX;
+                    const midY = (from.y + to.y) / 2 + offsetY;
+                    ctx.fillStyle = '#f9e2af';
+                    ctx.font = '14px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(edge.weight.toFixed(1), midX, midY - 10);
+                }
+            }
+            
+            // Рисуем вершины
+            for (let i = 0; i < vertices.length; i++) {
+                const v = vertices[i];
+                if (!v) continue;
+                
+                const x = v.x + offsetX;
+                const y = v.y + offsetY;
+                
+                ctx.shadowColor = 'rgba(137, 180, 250, 0.5)';
+                ctx.shadowBlur = 10;
+                ctx.fillStyle = '#89b4fa';
+                ctx.beginPath();
+                ctx.arc(x, y, 25, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowColor = 'transparent';
+                
+                ctx.fillStyle = '#1e1e2e';
+                ctx.font = 'bold 16px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(i, x, y);
+            }
+        }
+        
+        function highlightVertices(vertices, color = '#f9e2af') {
+            const ctx = canvas.getContext('2d');
+            const offsetX = (canvas.width - 900) / 2 + 225;
+            const offsetY = (canvas.height - 600) / 2 + 150;
+            
+            for (let i = 0; i < vertices.length; i++) {
+                const v = currentGraphData.vertices[vertices[i]];
+                if (!v) continue;
+                
+                const x = v.x + offsetX;
+                const y = v.y + offsetY;
+                
+                ctx.shadowColor = `rgba(249, 226, 175, 0.8)`;
+                ctx.shadowBlur = 15;
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(x, y, 30, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowColor = 'transparent';
+                
+                ctx.fillStyle = '#1e1e2e';
+                ctx.font = 'bold 14px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(vertices[i], x, y);
+                ctx.fillText(`(${i+1})`, x, y + 35);
+            }
+        }
+        
+        function highlightPath(path) {
+            if (path.length < 2) return;
+            
+            const ctx = canvas.getContext('2d');
+            const offsetX = (canvas.width - 900) / 2 + 225;
+            const offsetY = (canvas.height - 600) / 2 + 150;
+            
+            ctx.strokeStyle = '#f38ba8';
+            ctx.lineWidth = 4;
+            
+            for (let i = 0; i < path.length - 1; i++) {
+                const from = currentGraphData.vertices[path[i]];
+                const to = currentGraphData.vertices[path[i + 1]];
+                if (!from || !to) continue;
+                
+                ctx.beginPath();
+                ctx.moveTo(from.x + offsetX, from.y + offsetY);
+                ctx.lineTo(to.x + offsetX, to.y + offsetY);
+                ctx.stroke();
+            }
+            
+            highlightVertices(path, '#f38ba8');
+        }
+        
+        function showAlgorithmResult(message) {
+            const resultDiv = document.getElementById('algorithmResult');
+            resultDiv.style.display = 'block';
+            resultDiv.textContent = message;
+        }
+        
+        function clearGraph() {
+            currentGraphData = null;
+            currentMatrix = null;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            document.getElementById('matrixInput').value = '';
+            document.getElementById('algorithmResult').style.display = 'none';
+            showStatus('Граф очищен');
+        }
+        
+        function showStatus(message, isError = false) {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.style.color = isError ? '#f38ba8' : '#a6e3a1';
+        }
+        
+        resizeCanvas();
+        showStatus('Готов к работе');
     </script>
 </body>
 </html>

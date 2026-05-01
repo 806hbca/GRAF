@@ -1,34 +1,92 @@
-const { app, BrowserWindow, ipcMain } = require('electron')
+// src/main.js
+const { app, BrowserWindow, ipcMain, dialog } = require('electron')
 const path = require('path')
+const fs = require('fs')
 
-// Загружаем C++ addon
-const addon = require('../addon/build/Release/calculations')
+let addon;
+try {
+    addon = require('../addon/build/Release/grafalgorithms')
+    console.log('Addon loaded successfully')
+    console.log('Available functions:', Object.keys(addon))
+} catch (error) {
+    console.error('Failed to load addon:', error)
+}
 
 let win
+let currentMatrix = null
 
 function createWindow() {
     win = new BrowserWindow({
-        width: 900,
-        height: 600,
+        width: 1200,
+        height: 800,
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
-            contextIsolation: true,   // Безопасность!
-            nodeIntegration: false    // Безопасность!
+            contextIsolation: true,
+            nodeIntegration: false
         }
     })
-    win.loadFile(path.join(__dirname, '../src/index.html'))
+    win.loadFile(path.join(__dirname, 'index.html'))
     win.webContents.openDevTools()
 }
 
-// IPC обработчик — получает вызов от HTML, передаёт в C++
-ipcMain.handle('cpp-calculate', async (event, value) => {
-    return new Promise((resolve, reject) => {
-        addon.calculateAsync(value, (err, result) => {
-            if (err) reject(err)
-            else resolve(result)
-        })
+function registerIpcHandlers() {
+    // Построение графа
+    ipcMain.handle('build-graph', async (event, matrix) => {
+        console.log('build-graph called')
+        if (!addon) throw new Error('Addon not loaded')
+        
+        currentMatrix = matrix
+        return addon.buildGraph(matrix)
     })
+
+    // BFS обход
+    ipcMain.handle('run-bfs', async (event, startVertex) => {
+        if (!addon || !currentMatrix) throw new Error('Addon or matrix not available')
+        return addon.bfs(currentMatrix, startVertex)
+    })
+
+    // DFS обход
+    ipcMain.handle('run-dfs', async (event, startVertex) => {
+        if (!addon || !currentMatrix) throw new Error('Addon or matrix not available')
+        return addon.dfs(currentMatrix, startVertex)
+    })
+
+    // Кратчайший путь
+    ipcMain.handle('find-shortest-path', async (event, start, end) => {
+        if (!addon || !currentMatrix) throw new Error('Addon or matrix not available')
+        return addon.shortestPath(currentMatrix, start, end)
+    })
+
+    // Проверка связности
+    ipcMain.handle('check-connectivity', async () => {
+        if (!addon || !currentMatrix) throw new Error('Addon or matrix not available')
+        return addon.isConnected(currentMatrix)
+    })
+
+    // Открытие файла
+    ipcMain.handle('open-file', async () => {
+        if (!win) throw new Error('Window not available')
+        
+        const result = await dialog.showOpenDialog(win, {
+            properties: ['openFile'],
+            filters: [{ name: 'Text Files', extensions: ['txt'] }]
+        })
+        
+        if (!result.canceled && result.filePaths.length > 0) {
+            const content = fs.readFileSync(result.filePaths[0], 'utf-8')
+            return { content, fileName: path.basename(result.filePaths[0]) }
+        }
+        return null
+    })
+    
+    console.log('IPC handlers registered')
+}
+
+app.whenReady().then(() => {
+    registerIpcHandlers()
+    createWindow()
 })
 
-app.whenReady().then(createWindow)
-app.on('window-all-closed', () => app.quit())
+app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') app.quit()
+})

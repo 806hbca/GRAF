@@ -1,12 +1,10 @@
 {
-  "name": "graf",
+  "name": "graph-visualizer",
   "version": "1.0.0",
-  "description": "",
+  "description": "Graph visualization with C++ backend",
   "main": "src/main.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "build-addon": "cd addon && node-gyp configure && node-gyp build",
-    "rebuild": "electron-rebuild -f -w calculations",
     "start": "npm run build-addon && electron ."
   },
   "keywords": [],
@@ -18,8 +16,6 @@
     "node-addon-api": "^8.7.0"
   },
   "devDependencies": {
-    "@electron/rebuild": "^4.0.4",
-    "electron-rebuild": "^3.2.9",
     "node-gyp": "^12.3.0"
   }
 }

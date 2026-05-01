@@ -1,7 +1,14 @@
-
+// src/preload.js
 const { contextBridge, ipcRenderer } = require('electron')
 
-// Безопасно открываем API для HTML страницы
 contextBridge.exposeInMainWorld('cpp', {
-    calculate: (value) => ipcRenderer.invoke('cpp-calculate', value)
+    buildGraph: (matrix) => ipcRenderer.invoke('build-graph', matrix),
+    runBFS: (startVertex) => ipcRenderer.invoke('run-bfs', startVertex),
+    runDFS: (startVertex) => ipcRenderer.invoke('run-dfs', startVertex),
+    findShortestPath: (start, end) => ipcRenderer.invoke('find-shortest-path', start, end),
+    checkConnectivity: () => ipcRenderer.invoke('check-connectivity')
+})
+
+contextBridge.exposeInMainWorld('electron', {
+    openFile: () => ipcRenderer.invoke('open-file')
 })

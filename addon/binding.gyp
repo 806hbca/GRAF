@@ -1,7 +1,7 @@
 {
   "targets": [{
-    "target_name": "calculations",
-    "sources": ["src/calculations.cpp"],
+    "target_name": "grafalgorithms",
+    "sources": ["src/grafalgorithms.cpp"],
     "include_dirs": [
       "<!@(node -p \"require('node-addon-api').include\")"
     ],
