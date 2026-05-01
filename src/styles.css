@@ -370,6 +370,26 @@ canvas {
     overflow-y: auto;
 }
 
+.edit-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.edit-grid .option-item {
+    flex-direction: column;
+    text-align: center;
+    padding: 15px 10px;
+}
+
+.edit-grid .option-icon {
+    margin-bottom: 8px;
+}
+
+.edit-grid .option-desc {
+    font-size: 11px;
+}
+
 #minimap {
     position: fixed;
     bottom: 20px;

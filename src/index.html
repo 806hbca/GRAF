@@ -13,6 +13,7 @@
             <button class="success" onclick="loadFromFile()">📁 Загрузить из файла</button>
             <button class="danger" onclick="clearGraph()">🗑️ Очистить</button>
             <button class="warning" onclick="showOptionsMenu()">⚙️ Опции</button>
+            <button class="info" onclick="showEditMenu()">✏️ Редактировать граф</button>
             
             <div class="graph-type-selector">
                 <label>
@@ -59,13 +60,10 @@
         </div>
     </div>
     
-        
     <!-- Popup меню для дополнительных опций -->
-    
     <div id="optionsMenu" class="popup-menu" style="display: none;">
         <h3>Алгоритмы и опции</h3>
         
-        <!-- Обход графа -->
         <div class="option-category">Обход графа</div>
         
         <div class="option-item" onclick="showTraversalSubmenu('bfs')">
@@ -84,7 +82,6 @@
             </div>
         </div>
         
-        <!-- Кратчайший путь -->
         <div class="option-category">Поиск пути</div>
         
         <div class="option-item" onclick="showShortestPathMenu()">
@@ -103,14 +100,13 @@
             </div>
         </div>
         
-        <!-- Остовное дерево -->
         <div class="option-category">Остовное дерево</div>
         
         <div class="option-item" onclick="runMSTAlgorithm('kruskal')">
             <div class="option-icon">🔗</div>
             <div class="option-info">
                 <div class="option-title">MST (Алгоритм Краскала)</div>
-                <div class="option-desc">Сортировка ребер и система непересекающихся множеств</div>
+                <div class="option-desc">Сортировка ребер и DSU</div>
             </div>
         </div>
         
@@ -122,7 +118,6 @@
             </div>
         </div>
         
-        <!-- Эйлеровость -->
         <div class="option-category">Эйлеровость</div>
         
         <div class="option-item" onclick="checkEulerianGraph()">
@@ -141,7 +136,6 @@
             </div>
         </div>
         
-        <!-- Связность -->
         <div class="option-category">Другое</div>
         
         <div class="option-item" onclick="checkConnectivity()">
@@ -152,8 +146,8 @@
             </div>
         </div>
     </div>
-
-    <!-- Подменю для обхода графа (BFS/DFS) -->
+    
+    <!-- Подменю для обхода графа -->
     <div id="traversalSubmenu" class="popup-menu" style="display: none;">
         <h3 id="traversalSubmenuTitle">BFS обход</h3>
         
@@ -163,9 +157,9 @@
             <button onclick="runTraversal()">▶ Запустить обход</button>
         </div>
         
-        <button onclick="closeTraversalSubmenu()" style="width: 100%; margin-top: 10px; background: #95a5a6;">Отмена</button>
+        <button onclick="closeSubmenu('traversalSubmenu')" style="width: 100%; margin-top: 10px; background: #95a5a6;">Отмена</button>
     </div>
-
+    
     <!-- Подменю для кратчайшего пути -->
     <div id="shortestPathMenu" class="popup-menu" style="display: none;">
         <h3>Поиск кратчайшего пути</h3>
@@ -181,30 +175,124 @@
         </div>
         
         <button onclick="runShortestPath()">▶ Найти путь</button>
-        <button onclick="closeShortestPathMenu()" style="width: 100%; margin-top: 10px; background: #95a5a6;">Отмена</button>
+        <button onclick="closeSubmenu('shortestPathMenu')" style="width: 100%; margin-top: 10px; background: #95a5a6;">Отмена</button>
     </div>
+    
+    <!-- Popup меню для редактирования графа -->
+    <div id="editMenu" class="popup-menu" style="display: none;">
+        <h3>Редактирование графа</h3>
         
-
-    <div id="mstMenu" class="popup-menu" style="display: none;">
-        <h3>Выберите алгоритм MST</h3>
+        <div class="option-category">Вершины</div>
         
-        <div class="traversal-option selected" data-type="kruskal" onclick="selectMSTAlgorithm('kruskal')">
-            <div class="traversal-icon bfs-icon">🔗</div>
-            <div class="traversal-info">
-                <div class="traversal-title">Алгоритм Краскала</div>
-                <div class="traversal-desc">Сортировка ребер и система непересекающихся множеств</div>
+        <div class="edit-grid">
+            <div class="option-item" onclick="showAddVertexMenu()">
+                <div class="option-icon" style="background: #e8f5e9; color: #2ecc71;">➕</div>
+                <div class="option-info">
+                    <div class="option-title">Добавить вершину</div>
+                    <div class="option-desc">Добавляет новую вершину</div>
+                </div>
+            </div>
+            
+            <div class="option-item" onclick="showDeleteVertexMenu()">
+                <div class="option-icon" style="background: #fce4ec; color: #e74c3c;">➖</div>
+                <div class="option-info">
+                    <div class="option-title">Удалить вершину</div>
+                    <div class="option-desc">Удаляет вершину и ребра</div>
+                </div>
             </div>
         </div>
         
-        <div class="traversal-option" data-type="prim" onclick="selectMSTAlgorithm('prim')">
-            <div class="traversal-icon dfs-icon">⭐</div>
-            <div class="traversal-info">
-                <div class="traversal-title">Алгоритм Прима</div>
-                <div class="traversal-desc">Построение от вершины с минимальным ребром</div>
+        <div class="option-category">Рёбра</div>
+        
+        <div class="edit-grid">
+            <div class="option-item" onclick="showAddEdgeMenu()">
+                <div class="option-icon" style="background: #e3f2fd; color: #3498db;">🔗</div>
+                <div class="option-info">
+                    <div class="option-title">Добавить ребро</div>
+                    <div class="option-desc">Добавляет ребро</div>
+                </div>
+            </div>
+            
+            <div class="option-item" onclick="showDeleteEdgeMenu()">
+                <div class="option-icon" style="background: #fff3e0; color: #f39c12;">✂️</div>
+                <div class="option-info">
+                    <div class="option-title">Удалить ребро</div>
+                    <div class="option-desc">Удаляет ребро</div>
+                </div>
             </div>
         </div>
+    </div>
+    
+    <!-- Подменю: Добавить вершину -->
+    <div id="addVertexMenu" class="popup-menu" style="display: none;">
+        <h3>Добавить вершину</h3>
         
-        <button onclick="runMST()" style="width: 100%; margin-top: 15px;">▶ Построить MST</button>
+        <div class="start-vertex-input">
+            <label for="newVertexX">Координата X:</label>
+            <input type="number" id="newVertexX" value="0" placeholder="X координата">
+        </div>
+        
+        <div class="start-vertex-input">
+            <label for="newVertexY">Координата Y:</label>
+            <input type="number" id="newVertexY" value="0" placeholder="Y координата">
+        </div>
+        
+        <button onclick="addVertex()">➕ Добавить</button>
+        <button onclick="closeSubmenu('addVertexMenu')" style="width: 100%; margin-top: 10px; background: #95a5a6;">Отмена</button>
+    </div>
+    
+    <!-- Подменю: Удалить вершину -->
+    <div id="deleteVertexMenu" class="popup-menu" style="display: none;">
+        <h3>Удалить вершину</h3>
+        
+        <div class="start-vertex-input">
+            <label for="deleteVertexIndex">Индекс вершины:</label>
+            <input type="number" id="deleteVertexIndex" value="0" min="0" placeholder="Номер вершины">
+        </div>
+        
+        <button onclick="deleteVertex()" class="danger">🗑️ Удалить</button>
+        <button onclick="closeSubmenu('deleteVertexMenu')" style="width: 100%; margin-top: 10px; background: #95a5a6;">Отмена</button>
+    </div>
+    
+    <!-- Подменю: Добавить ребро -->
+    <div id="addEdgeMenu" class="popup-menu" style="display: none;">
+        <h3>Добавить ребро</h3>
+        
+        <div class="start-vertex-input">
+            <label for="edgeFromVertex">От вершины:</label>
+            <input type="number" id="edgeFromVertex" value="0" min="0" placeholder="Начальная вершина">
+        </div>
+        
+        <div class="start-vertex-input">
+            <label for="edgeToVertex">До вершины:</label>
+            <input type="number" id="edgeToVertex" value="1" min="0" placeholder="Конечная вершина">
+        </div>
+        
+        <div class="start-vertex-input">
+            <label for="edgeWeight">Вес ребра:</label>
+            <input type="number" id="edgeWeight" value="1" step="0.1" min="0.1" placeholder="Вес">
+        </div>
+        
+        <button onclick="addEdge()">🔗 Добавить ребро</button>
+        <button onclick="closeSubmenu('addEdgeMenu')" style="width: 100%; margin-top: 10px; background: #95a5a6;">Отмена</button>
+    </div>
+    
+    <!-- Подменю: Удалить ребро -->
+    <div id="deleteEdgeMenu" class="popup-menu" style="display: none;">
+        <h3>Удалить ребро</h3>
+        
+        <div class="start-vertex-input">
+            <label for="deleteEdgeFrom">От вершины:</label>
+            <input type="number" id="deleteEdgeFrom" value="0" min="0" placeholder="Начальная вершина">
+        </div>
+        
+        <div class="start-vertex-input">
+            <label for="deleteEdgeTo">До вершины:</label>
+            <input type="number" id="deleteEdgeTo" value="1" min="0" placeholder="Конечная вершина">
+        </div>
+        
+        <button onclick="deleteEdge()" class="danger">✂️ Удалить ребро</button>
+        <button onclick="closeSubmenu('deleteEdgeMenu')" style="width: 100%; margin-top: 10px; background: #95a5a6;">Отмена</button>
     </div>
 
     <script src="graph-canvas.js"></script>

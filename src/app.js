@@ -379,9 +379,251 @@ async function solveTSPGraph() {
     }
 }
 
+// Функции редактирования графа
+
+function showEditMenu() {
+    const menu = document.getElementById('editMenu');
+    menu.style.display = 'block';
+    
+    const rect = menu.getBoundingClientRect();
+    menu.style.left = (window.innerWidth - rect.width) / 2 + 'px';
+    menu.style.top = (window.innerHeight - rect.height) / 2 + 'px';
+    
+    setTimeout(() => {
+        document.addEventListener('click', closeEditMenu);
+    }, 100);
+}
+
+function closeEditMenu(e) {
+    const menu = document.getElementById('editMenu');
+    if (e && !menu.contains(e.target)) {
+        menu.style.display = 'none';
+        document.removeEventListener('click', closeEditMenu);
+    }
+}
+
+// Закрытие подменю
+function closeSubmenu(menuId) {
+    const menu = document.getElementById(menuId);
+    menu.style.display = 'none';
+    document.removeEventListener('click', closeSubmenuHandler);
+}
+
+function showSubmenu(menuId) {
+    closeEditMenu();
+    
+    const menu = document.getElementById(menuId);
+    menu.style.display = 'block';
+    
+    const rect = menu.getBoundingClientRect();
+    menu.style.left = (window.innerWidth - rect.width) / 2 + 'px';
+    menu.style.top = (window.innerHeight - rect.height) / 2 + 'px';
+    
+    setTimeout(() => {
+        document.addEventListener('click', closeSubmenuHandler);
+    }, 100);
+}
+
+function closeSubmenuHandler(e) {
+    const submenus = ['addVertexMenu', 'deleteVertexMenu', 'addEdgeMenu', 'deleteEdgeMenu'];
+    let clickedInside = false;
+    
+    submenus.forEach(menuId => {
+        const menu = document.getElementById(menuId);
+        if (menu && menu.contains(e.target)) {
+            clickedInside = true;
+        }
+    });
+    
+    if (!clickedInside) {
+        submenus.forEach(menuId => {
+            const menu = document.getElementById(menuId);
+            if (menu) menu.style.display = 'none';
+        });
+        document.removeEventListener('click', closeSubmenuHandler);
+    }
+}
+
+// Показать меню добавления вершины
+function showAddVertexMenu() {
+    showSubmenu('addVertexMenu');
+    document.getElementById('newVertexX').focus();
+}
+
+// Показать меню удаления вершины
+function showDeleteVertexMenu() {
+    showSubmenu('deleteVertexMenu');
+    document.getElementById('deleteVertexIndex').focus();
+}
+
+// Показать меню добавления ребра
+function showAddEdgeMenu() {
+    showSubmenu('addEdgeMenu');
+    document.getElementById('edgeFromVertex').focus();
+}
+
+// Показать меню удаления ребра
+function showDeleteEdgeMenu() {
+    showSubmenu('deleteEdgeMenu');
+    document.getElementById('deleteEdgeFrom').focus();
+}
+
+// Добавить вершину
+function addVertex() {
+    if (!currentMatrix) {
+        showStatus('Сначала постройте граф', true);
+        closeSubmenu('addVertexMenu');
+        return;
+    }
+    
+    const x = parseFloat(document.getElementById('newVertexX').value) || 0;
+    const y = parseFloat(document.getElementById('newVertexY').value) || 0;
+    
+    // Добавляем новую строку и столбец в матрицу
+    const n = currentMatrix.length;
+    const newMatrix = [];
+    
+    for (let i = 0; i < n; i++) {
+        const newRow = [...currentMatrix[i], 0];
+        newMatrix.push(newRow);
+    }
+    
+    // Добавляем новую строку (n+1 элементов)
+    const newRow = new Array(n + 1).fill(0);
+    newMatrix.push(newRow);
+    
+    currentMatrix = newMatrix;
+    buildGraph(currentMatrix);
+    
+    closeSubmenu('addVertexMenu');
+    showStatus(`Вершина добавлена. Всего вершин: ${n + 1}`);
+}
+
+// Удалить вершину
+function deleteVertex() {
+    if (!currentMatrix) {
+        showStatus('Сначала постройте граф', true);
+        closeSubmenu('deleteVertexMenu');
+        return;
+    }
+    
+    const vertexIndex = parseInt(document.getElementById('deleteVertexIndex').value);
+    const n = currentMatrix.length;
+    
+    if (isNaN(vertexIndex) || vertexIndex < 0 || vertexIndex >= n) {
+        showStatus('Некорректный индекс вершины', true);
+        return;
+    }
+    
+    if (n <= 1) {
+        showStatus('Нельзя удалить последнюю вершину', true);
+        return;
+    }
+    
+    // Удаляем строку и столбец
+    const newMatrix = [];
+    for (let i = 0; i < n; i++) {
+        if (i === vertexIndex) continue;
+        const newRow = [];
+        for (let j = 0; j < n; j++) {
+            if (j === vertexIndex) continue;
+            newRow.push(currentMatrix[i][j]);
+        }
+        newMatrix.push(newRow);
+    }
+    
+    currentMatrix = newMatrix;
+    buildGraph(currentMatrix);
+    
+    closeSubmenu('deleteVertexMenu');
+    showStatus(`Вершина ${vertexIndex} удалена. Осталось вершин: ${n - 1}`);
+}
+
+// Добавить ребро
+function addEdge() {
+    if (!currentMatrix) {
+        showStatus('Сначала постройте граф', true);
+        closeSubmenu('addEdgeMenu');
+        return;
+    }
+    
+    const from = parseInt(document.getElementById('edgeFromVertex').value);
+    const to = parseInt(document.getElementById('edgeToVertex').value);
+    const weight = parseFloat(document.getElementById('edgeWeight').value) || 1;
+    const n = currentMatrix.length;
+    
+    if (isNaN(from) || from < 0 || from >= n || isNaN(to) || to < 0 || to >= n) {
+        showStatus('Некорректные индексы вершин', true);
+        return;
+    }
+    
+    if (from === to) {
+        showStatus('Нельзя добавить петлю', true);
+        return;
+    }
+    
+    if (currentMatrix[from][to] !== 0) {
+        showStatus('Ребро уже существует', true);
+        return;
+    }
+    
+    // Добавляем ребро
+    currentMatrix[from][to] = weight;
+    
+    // Для неориентированного графа добавляем обратное ребро
+    if (graphCanvas.graphType === 'undirected') {
+        currentMatrix[to][from] = weight;
+    }
+    
+    buildGraph(currentMatrix);
+    
+    closeSubmenu('addEdgeMenu');
+    showStatus(`Ребро ${from}→${to} (вес: ${weight}) добавлено`);
+}
+
+// Удалить ребро
+function deleteEdge() {
+    if (!currentMatrix) {
+        showStatus('Сначала постройте граф', true);
+        closeSubmenu('deleteEdgeMenu');
+        return;
+    }
+    
+    const from = parseInt(document.getElementById('deleteEdgeFrom').value);
+    const to = parseInt(document.getElementById('deleteEdgeTo').value);
+    const n = currentMatrix.length;
+    
+    if (isNaN(from) || from < 0 || from >= n || isNaN(to) || to < 0 || to >= n) {
+        showStatus('Некорректные индексы вершин', true);
+        return;
+    }
+    
+    if (currentMatrix[from][to] === 0) {
+        showStatus('Ребро не существует', true);
+        return;
+    }
+    
+    // Удаляем ребро
+    currentMatrix[from][to] = 0;
+    
+    // Для неориентированного графа удаляем обратное ребро
+    if (graphCanvas.graphType === 'undirected') {
+        currentMatrix[to][from] = 0;
+    }
+    
+    buildGraph(currentMatrix);
+    
+    closeSubmenu('deleteEdgeMenu');
+    showStatus(`Ребро ${from}→${to} удалено`);
+}
+
 // Инициализация обработчиков для popup меню
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('optionsMenu').addEventListener('click', (e) => {
+        e.stopPropagation();
+    });
+    
+    document.getElementById('editMenu').addEventListener('click', (e) => {
         e.stopPropagation();
     });
     
@@ -392,6 +634,19 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('shortestPathMenu').addEventListener('click', (e) => {
         e.stopPropagation();
     });
+    
+    // Подменю редактирования
+    ['addVertexMenu', 'deleteVertexMenu', 'addEdgeMenu', 'deleteEdgeMenu'].forEach(menuId => {
+        const menu = document.getElementById(menuId);
+        if (menu) {
+            menu.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+        }
+    });
 });
+
+
+
 
 showStatus('🖱️ Перетаскивайте вершины | 🖱️ Панорамируйте холст | 🔍 Колесико для зума | 2x клик на миникарте - центр');
