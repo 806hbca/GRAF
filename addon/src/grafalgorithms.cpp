@@ -226,6 +226,7 @@ public:
 };
 
 // Синхронная функция построения графа
+// Синхронная функция построения графа
 Napi::Value BuildGraph(const Napi::CallbackInfo &info)
 {
     Napi::Env env = info.Env();
@@ -268,19 +269,41 @@ Napi::Value BuildGraph(const Napi::CallbackInfo &info)
     }
     result.Set("vertices", posArray);
 
+    // Формируем ребра, объединяя двунаправленные
     Napi::Array edgesArray = Napi::Array::New(env);
     int edgeIndex = 0;
 
+    // Карта для отслеживания обработанных ребер
+    std::vector<std::vector<bool>> processed(n, std::vector<bool>(n, false));
+
     for (int i = 0; i < n; i++)
     {
-        for (const auto &point : adjList[i])
+        for (int j = 0; j < n; j++)
         {
-            if (i < point.vertex)
+            if (matrix[i][j] != 0 && !processed[i][j])
             {
                 Napi::Object edge = Napi::Object::New(env);
+
+                // Проверяем, есть ли обратное ребро с таким же весом
+                bool isBidirectional = (matrix[j][i] != 0 && matrix[i][j] == matrix[j][i]);
+
                 edge.Set("from", i);
-                edge.Set("to", point.vertex);
-                edge.Set("weight", point.weight);
+                edge.Set("to", j);
+                edge.Set("weight", matrix[i][j]);
+                edge.Set("isBidirectional", isBidirectional);
+
+                if (isBidirectional)
+                {
+                    // Помечаем оба направления как обработанные
+                    processed[i][j] = true;
+                    processed[j][i] = true;
+                }
+                else
+                {
+                    // Помечаем только текущее направление
+                    processed[i][j] = true;
+                }
+
                 edgesArray.Set(edgeIndex++, edge);
             }
         }
@@ -290,7 +313,6 @@ Napi::Value BuildGraph(const Napi::CallbackInfo &info)
 
     return result;
 }
-
 // BFS функция
 Napi::Value RunBFS(const Napi::CallbackInfo &info)
 {

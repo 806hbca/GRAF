@@ -12,8 +12,8 @@
         }
 
         body { 
-            background: #1a1a2e; 
-            color: #cdd6f4; 
+            background: #ffffff; 
+            color: #2c3e50; 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             height: 100vh;
             display: flex;
@@ -22,11 +22,11 @@
         }
         
         .controls {
-            background: rgba(24, 24, 37, 0.95);
+            background: #f8f9fa;
             padding: 15px;
-            border-bottom: 2px solid #313244;
-            backdrop-filter: blur(10px);
+            border-bottom: 2px solid #dee2e6;
             z-index: 100;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
         
         .control-row {
@@ -40,8 +40,8 @@
         button {
             padding: 10px 20px;
             font-size: 13px;
-            background: #89b4fa;
-            color: #1e1e2e;
+            background: #667eea;
+            color: white;
             border: none;
             border-radius: 6px;
             cursor: pointer;
@@ -51,8 +51,9 @@
         }
         
         button:hover {
-            background: #74c7ec;
+            background: #5a6fd6;
             transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
         }
         
         button:active {
@@ -60,40 +61,84 @@
         }
         
         button.danger {
-            background: #f38ba8;
+            background: #e74c3c;
+        }
+        
+        button.danger:hover {
+            background: #c0392b;
+            box-shadow: 0 4px 12px rgba(231, 76, 60, 0.4);
         }
         
         button.success {
-            background: #a6e3a1;
+            background: #2ecc71;
+        }
+        
+        button.success:hover {
+            background: #27ae60;
+            box-shadow: 0 4px 12px rgba(46, 204, 113, 0.4);
         }
         
         button.warning {
-            background: #f9e2af;
+            background: #f39c12;
+        }
+        
+        button.warning:hover {
+            background: #e67e22;
+            box-shadow: 0 4px 12px rgba(243, 156, 18, 0.4);
+        }
+        
+        button.info {
+            background: #3498db;
+        }
+        
+        button.info:hover {
+            background: #2980b9;
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);
         }
         
         input[type="number"] {
             width: 70px;
             padding: 8px;
-            background: #313244;
-            border: 1px solid #45475a;
+            background: white;
+            border: 1px solid #dee2e6;
             border-radius: 4px;
-            color: #cdd6f4;
+            color: #2c3e50;
             font-size: 13px;
         }
         
         label {
             font-size: 13px;
-            color: #a6adc8;
+            color: #7f8c8d;
+            font-weight: 500;
+        }
+        
+        .graph-type-selector {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-left: auto;
+        }
+        
+        .graph-type-selector label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+        }
+        
+        .graph-type-selector input[type="radio"] {
+            cursor: pointer;
         }
         
         .algorithm-result {
             margin-top: 10px;
             padding: 10px;
-            background: #313244;
+            background: #f1f3f4;
             border-radius: 6px;
             font-size: 13px;
             max-height: 100px;
             overflow-y: auto;
+            border: 1px solid #dee2e6;
         }
 
         #canvas-container {
@@ -101,17 +146,18 @@
             position: relative;
             overflow: hidden;
             cursor: grab;
+            background: #ffffff;
         }
 
         #canvas-container.grabbing {
             cursor: grabbing;
         }
-
-        #canvas-container.crosshair {
-            cursor: crosshair;
+        
+        #canvas-container.move-cursor {
+            cursor: move;
         }
-
-        #canvas-container.pointer {
+        
+        #canvas-container.pointer-cursor {
             cursor: pointer;
         }
 
@@ -121,6 +167,7 @@
             left: 0;
         }
 
+        /* Модальные окна */
         .modal {
             display: none;
             position: fixed;
@@ -128,30 +175,35 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0, 0, 0, 0.5);
             z-index: 1000;
             justify-content: center;
             align-items: center;
         }
         
+        .modal.active {
+            display: flex;
+        }
+        
         .modal-content {
-            background: #313244;
+            background: white;
             padding: 30px;
             border-radius: 12px;
             min-width: 400px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
         }
         
         .modal-content h3 {
             margin-bottom: 20px;
-            color: #89b4fa;
+            color: #667eea;
         }
         
         .modal-content textarea {
             width: 100%;
             height: 200px;
-            background: #45475a;
-            color: #cdd6f4;
-            border: 1px solid #585b70;
+            background: #f8f9fa;
+            color: #2c3e50;
+            border: 1px solid #dee2e6;
             border-radius: 6px;
             padding: 10px;
             font-family: 'Courier New', monospace;
@@ -163,6 +215,104 @@
             gap: 10px;
             justify-content: flex-end;
         }
+        
+        /* Стили для popup меню */
+        .popup-menu {
+            position: fixed;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            z-index: 1001;
+            min-width: 300px;
+            padding: 20px;
+        }
+        
+        .popup-menu h3 {
+            margin-bottom: 15px;
+            color: #667eea;
+            font-size: 16px;
+        }
+        
+        .traversal-option {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 10px;
+        }
+        
+        .traversal-option:hover {
+            background: #f1f3f4;
+        }
+        
+        .traversal-option.selected {
+            background: #e8eaf6;
+            border: 2px solid #667eea;
+        }
+        
+        .traversal-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+        
+        .bfs-icon {
+            background: #e8f5e9;
+            color: #2ecc71;
+        }
+        
+        .dfs-icon {
+            background: #e3f2fd;
+            color: #3498db;
+        }
+        
+        .traversal-info {
+            flex: 1;
+        }
+        
+        .traversal-title {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 4px;
+        }
+        
+        .traversal-desc {
+            font-size: 12px;
+            color: #7f8c8d;
+        }
+        
+        .start-vertex-input {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #dee2e6;
+        }
+        
+        .start-vertex-input label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .start-vertex-input input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        .start-vertex-input button {
+            width: 100%;
+            margin-top: 10px;
+        }
 
         #minimap {
             position: fixed;
@@ -170,12 +320,24 @@
             right: 20px;
             width: 200px;
             height: 150px;
-            background: rgba(0, 0, 0, 0.5);
-            border: 2px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.95);
+            border: 2px solid #dee2e6;
             border-radius: 10px;
             overflow: hidden;
-            backdrop-filter: blur(10px);
             z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        #minimap:hover {
+            border-color: #667eea;
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3);
+            transform: scale(1.02);
+        }
+        
+        #minimap:active {
+            transform: scale(0.98);
         }
 
         #minimap canvas {
@@ -187,76 +349,117 @@
             position: fixed;
             bottom: 20px;
             left: 20px;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(255, 255, 255, 0.9);
             padding: 8px 16px;
             border-radius: 20px;
             font-size: 12px;
-            color: #cdd6f4;
+            color: #7f8c8d;
             z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Инвертированный курсор для canvas */
+        @media (prefers-color-scheme: dark) {
+            #canvas-container {
+                cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><circle cx='12' cy='12' r='8' fill='black' stroke='white' stroke-width='2'/></svg>") 12 12, auto;
+            }
         }
     </style>
 </head>
 <body>
     <div class="controls">
         <div class="control-row">
-            <button onclick="showManualInput()">Ввести граф вручную</button>
-            <button class="success" onclick="loadFromFile()">Загрузить из файла</button>
-            <button class="danger" onclick="clearGraph()">Очистить</button>
+            <button onclick="showManualInput()">📝 Ввести граф вручную</button>
+            <button class="success" onclick="loadFromFile()">📁 Загрузить из файла</button>
+            <button class="danger" onclick="clearGraph()">🗑️ Очистить</button>
+            
+            <div class="graph-type-selector">
+                <label>
+                    <input type="radio" name="graphType" value="undirected" checked onchange="setGraphType('undirected')">
+                    Неориентированный
+                </label>
+                <label>
+                    <input type="radio" name="graphType" value="directed" onchange="setGraphType('directed')">
+                    Ориентированный
+                </label>
+            </div>
         </div>
         
         <div class="control-row">
             <label>Алгоритмы:</label>
-            <label>BFS от:</label>
-            <input type="number" id="bfsStart" value="0" min="0">
-            <button onclick="runBFS()">Запустить BFS</button>
-            
-            <label>DFS от:</label>
-            <input type="number" id="dfsStart" value="0" min="0">
-            <button onclick="runDFS()">Запустить DFS</button>
+            <button class="info" onclick="showTraversalMenu()">🔄 Обход графа</button>
             
             <label>Путь от:</label>
             <input type="number" id="pathStart" value="0" min="0">
             <label>до:</label>
             <input type="number" id="pathEnd" value="1" min="0">
-            <button class="warning" onclick="findPath()">Кратчайший путь</button>
+            <button class="warning" onclick="findPath()">📍 Кратчайший путь</button>
             
-            <button onclick="checkConnectivity()">Проверить связность</button>
+            <button onclick="checkConnectivity()">🔗 Проверить связность</button>
         </div>
         
         <div id="algorithmResult" class="algorithm-result" style="display: none;"></div>
-        <div id="status" style="margin-top: 5px; font-size: 13px;"></div>
+        <div id="status" style="margin-top: 5px; font-size: 13px; color: #7f8c8d;"></div>
     </div>
     
     <div id="canvas-container">
         <canvas id="graphCanvas"></canvas>
     </div>
     
-    <div id="minimap">
+    <div id="minimap" title="Двойной клик для центрирования">
         <canvas id="minimapCanvas"></canvas>
     </div>
     
     <div id="coordinates">X: 0, Y: 0 | Масштаб: 100%</div>
     
+    <!-- Модальное окно ввода матрицы -->
     <div id="inputModal" class="modal">
         <div class="modal-content">
             <h3>Введите матрицу смежности</h3>
-            <p style="margin-bottom: 10px; color: #a6adc8;">
+            <p style="margin-bottom: 10px; color: #7f8c8d;">
                 Пример квадратной матрицы:<br>
-                0 1 0 1<br>
-                1 0 1 0<br>
-                0 1 0 1<br>
-                1 0 1 0
+                0 1.5 0 2.3<br>
+                1.5 0 1.0 0<br>
+                0 1.0 0 1.7<br>
+                2.3 0 1.7 0
             </p>
             <textarea id="matrixInput" placeholder="Введите матрицу..."></textarea>
             <div class="modal-buttons">
-                <button onclick="closeModal()" style="background: #6c7086;">Отмена</button>
+                <button onclick="closeModal()" style="background: #95a5a6;">Отмена</button>
                 <button onclick="submitMatrix()" class="success">Построить граф</button>
             </div>
         </div>
     </div>
+    
+    <!-- Popup меню для выбора обхода -->
+    <div id="traversalMenu" class="popup-menu" style="display: none;">
+        <h3>Выберите тип обхода</h3>
+        
+        <div class="traversal-option selected" data-type="bfs" onclick="selectTraversal('bfs')">
+            <div class="traversal-icon bfs-icon">🔄</div>
+            <div class="traversal-info">
+                <div class="traversal-title">BFS (Поиск в ширину)</div>
+                <div class="traversal-desc">Обходит граф по уровням, используя очередь</div>
+            </div>
+        </div>
+        
+        <div class="traversal-option" data-type="dfs" onclick="selectTraversal('dfs')">
+            <div class="traversal-icon dfs-icon">🔍</div>
+            <div class="traversal-info">
+                <div class="traversal-title">DFS (Поиск в глубину)</div>
+                <div class="traversal-desc">Обходит граф в глубину, используя стек</div>
+            </div>
+        </div>
+        
+        <div class="start-vertex-input">
+            <label for="traversalStartVertex">Начальная вершина:</label>
+            <input type="number" id="traversalStartVertex" value="0" min="0" placeholder="Введите номер вершины">
+            <button onclick="runTraversal()">▶ Запустить обход</button>
+        </div>
+    </div>
 
     <script>
-        class InfiniteGraphCanvas {
+        class InteractiveGraphCanvas {
             constructor() {
                 this.canvas = document.getElementById('graphCanvas');
                 this.ctx = this.canvas.getContext('2d');
@@ -264,6 +467,7 @@
                 
                 this.minimapCanvas = document.getElementById('minimapCanvas');
                 this.minimapCtx = this.minimapCanvas.getContext('2d');
+                this.minimapContainer = document.getElementById('minimap');
                 
                 // Параметры камеры
                 this.camera = {
@@ -272,7 +476,6 @@
                     zoom: 1
                 };
                 
-                // Целевые параметры для плавной анимации
                 this.targetCamera = {
                     x: 0,
                     y: 0,
@@ -285,27 +488,32 @@
                     y: 0,
                     worldX: 0,
                     worldY: 0,
-                    isDragging: false,
-                    dragStartX: 0,
-                    dragStartY: 0,
                     isPanning: false,
                     panStartX: 0,
                     panStartY: 0,
                     cameraStartX: 0,
-                    cameraStartY: 0
+                    cameraStartY: 0,
+                    isDraggingNode: false,
+                    dragNodeIndex: -1,
+                    dragStartX: 0,
+                    dragStartY: 0
                 };
                 
                 // Данные графа
                 this.currentGraphData = null;
                 this.currentMatrix = null;
+                this.graphType = 'undirected';
                 
-                // Анимация
+                this.vertexPositions = [];
+                
                 this.animationId = null;
                 this.gridSize = 50;
                 
-                // Выделение для алгоритмов
                 this.highlightedVertices = [];
                 this.highlightedPath = [];
+                
+                // Обработанные ребра (для отрисовки двунаправленных)
+                this.processedEdges = [];
                 
                 this.init();
             }
@@ -332,6 +540,11 @@
                 window.addEventListener('mouseup', (e) => this.onMouseUp(e));
                 this.canvas.addEventListener('wheel', (e) => this.onWheel(e));
                 this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+                
+                // Двойной клик на миникарте для центрирования
+                this.minimapContainer.addEventListener('dblclick', (e) => {
+                    this.centerView();
+                });
             }
             
             screenToWorld(screenX, screenY) {
@@ -342,12 +555,85 @@
                 };
             }
             
-            worldToScreen(worldX, worldY) {
-                const rect = this.canvas.getBoundingClientRect();
-                return {
-                    x: worldX * this.camera.zoom + this.camera.x + rect.left,
-                    y: worldY * this.camera.zoom + this.camera.y + rect.top
-                };
+            findVertexAt(worldX, worldY) {
+                if (!this.currentGraphData || !this.vertexPositions.length) return -1;
+                
+                const radius = 25 / this.camera.zoom;
+                
+                for (let i = this.vertexPositions.length - 1; i >= 0; i--) {
+                    const pos = this.vertexPositions[i];
+                    const dx = pos.x - worldX;
+                    const dy = pos.y - worldY;
+                    if (dx * dx + dy * dy <= radius * radius) {
+                        return i;
+                    }
+                }
+                return -1;
+            }
+            
+            centerView() {
+                if (!this.currentGraphData || !this.vertexPositions.length) {
+                    // Центрируем на начало координат
+                    const rect = this.container.getBoundingClientRect();
+                    this.targetCamera.x = rect.width / 2;
+                    this.targetCamera.y = rect.height / 2;
+                    this.targetCamera.zoom = 1;
+                    return;
+                }
+                
+                // Находим центр графа
+                let sumX = 0, sumY = 0;
+                this.vertexPositions.forEach(pos => {
+                    sumX += pos.x;
+                    sumY += pos.y;
+                });
+                
+                const centerX = sumX / this.vertexPositions.length;
+                const centerY = sumY / this.vertexPositions.length;
+                
+                const rect = this.container.getBoundingClientRect();
+                
+                // Центрируем камеру на центре графа
+                this.targetCamera.zoom = 1;
+                this.targetCamera.x = rect.width / 2 - centerX * this.targetCamera.zoom;
+                this.targetCamera.y = rect.height / 2 - centerY * this.targetCamera.zoom;
+            }
+            
+            processEdges() {
+                if (!this.currentGraphData) return;
+                
+                this.processedEdges = [];
+                const processed = new Set();
+                
+                this.currentGraphData.edges.forEach(edge => {
+                    const key1 = `${edge.from}-${edge.to}`;
+                    const key2 = `${edge.to}-${edge.from}`;
+                    
+                    if (processed.has(key1) || processed.has(key2)) return;
+                    
+                    // Проверяем, есть ли обратное ребро с таким же весом
+                    const reverseEdge = this.currentGraphData.edges.find(e => 
+                        e.from === edge.to && e.to === edge.from && e.weight === edge.weight
+                    );
+                    
+                    if (reverseEdge) {
+                        // Двунаправленное ребро
+                        this.processedEdges.push({
+                            ...edge,
+                            isBidirectional: true,
+                            reverseWeight: reverseEdge.weight
+                        });
+                        processed.add(key1);
+                        processed.add(key2);
+                    } else {
+                        // Обычное ребро
+                        this.processedEdges.push({
+                            ...edge,
+                            isBidirectional: false
+                        });
+                        processed.add(key1);
+                    }
+                });
             }
             
             onMouseDown(e) {
@@ -357,13 +643,22 @@
                 this.mouse.worldX = worldPos.x;
                 this.mouse.worldY = worldPos.y;
                 
-                // Начинаем панорамирование
-                this.mouse.isPanning = true;
-                this.mouse.panStartX = e.clientX;
-                this.mouse.panStartY = e.clientY;
-                this.mouse.cameraStartX = this.targetCamera.x;
-                this.mouse.cameraStartY = this.targetCamera.y;
-                this.container.classList.add('grabbing');
+                const vertexIndex = this.findVertexAt(worldPos.x, worldPos.y);
+                
+                if (vertexIndex !== -1) {
+                    this.mouse.isDraggingNode = true;
+                    this.mouse.dragNodeIndex = vertexIndex;
+                    this.mouse.dragStartX = worldPos.x;
+                    this.mouse.dragStartY = worldPos.y;
+                    this.container.classList.add('grabbing');
+                } else {
+                    this.mouse.isPanning = true;
+                    this.mouse.panStartX = e.clientX;
+                    this.mouse.panStartY = e.clientY;
+                    this.mouse.cameraStartX = this.targetCamera.x;
+                    this.mouse.cameraStartY = this.targetCamera.y;
+                    this.container.classList.add('grabbing');
+                }
             }
             
             onMouseMove(e) {
@@ -371,9 +666,26 @@
                 this.mouse.worldX = worldPos.x;
                 this.mouse.worldY = worldPos.y;
                 
-                // Обновление координат в UI
                 document.getElementById('coordinates').textContent = 
                     `X: ${Math.round(worldPos.x)}, Y: ${Math.round(worldPos.y)} | Масштаб: ${Math.round(this.camera.zoom * 100)}%`;
+                
+                if (this.mouse.isDraggingNode && this.mouse.dragNodeIndex !== -1) {
+                    const dx = worldPos.x - this.mouse.dragStartX;
+                    const dy = worldPos.y - this.mouse.dragStartY;
+                    
+                    this.vertexPositions[this.mouse.dragNodeIndex].x += dx;
+                    this.vertexPositions[this.mouse.dragNodeIndex].y += dy;
+                    
+                    this.mouse.dragStartX = worldPos.x;
+                    this.mouse.dragStartY = worldPos.y;
+                    
+                    if (this.currentGraphData) {
+                        this.currentGraphData.vertices[this.mouse.dragNodeIndex] = {
+                            x: this.vertexPositions[this.mouse.dragNodeIndex].x,
+                            y: this.vertexPositions[this.mouse.dragNodeIndex].y
+                        };
+                    }
+                }
                 
                 if (this.mouse.isPanning) {
                     const dx = e.clientX - this.mouse.panStartX;
@@ -381,11 +693,24 @@
                     this.targetCamera.x = this.mouse.cameraStartX + dx;
                     this.targetCamera.y = this.mouse.cameraStartY + dy;
                 }
+                
+                // Меняем курсор в зависимости от контекста
+                if (!this.mouse.isDraggingNode && !this.mouse.isPanning) {
+                    const vertexIndex = this.findVertexAt(worldPos.x, worldPos.y);
+                    if (vertexIndex !== -1) {
+                        this.container.style.cursor = 'move';
+                    } else {
+                        this.container.style.cursor = 'grab';
+                    }
+                }
             }
             
             onMouseUp(e) {
                 this.mouse.isPanning = false;
+                this.mouse.isDraggingNode = false;
+                this.mouse.dragNodeIndex = -1;
                 this.container.classList.remove('grabbing');
+                this.container.style.cursor = 'grab';
             }
             
             onWheel(e) {
@@ -404,20 +729,30 @@
                     this.targetCamera.zoom /= zoomFactor;
                 }
                 
-                // Ограничение зума
                 this.targetCamera.zoom = Math.min(Math.max(0.1, this.targetCamera.zoom), 5);
                 
-                // Сохраняем позицию мыши при зуме
                 const zoomChange = this.targetCamera.zoom / oldZoom;
                 this.targetCamera.x = mouseX - (mouseX - this.targetCamera.x) * zoomChange;
                 this.targetCamera.y = mouseY - (mouseY - this.targetCamera.y) * zoomChange;
             }
             
-            setGraphData(graphData) {
+            setGraphData(graphData, matrix) {
                 this.currentGraphData = graphData;
+                this.currentMatrix = matrix;
                 this.highlightedVertices = [];
                 this.highlightedPath = [];
+                
+                this.vertexPositions = graphData.vertices.map(v => ({ x: v.x, y: v.y }));
+                //this.processEdges();
+                
                 this.resetView();
+            }
+            
+            setGraphType(type) {
+                this.graphType = type;
+                if (this.currentMatrix) {
+                    buildGraph(this.currentMatrix);
+                }
             }
             
             resetView() {
@@ -427,26 +762,21 @@
                 this.targetCamera.zoom = 1;
             }
             
-            // Отрисовка
             draw() {
-                // Плавное движение камеры
                 this.camera.x += (this.targetCamera.x - this.camera.x) * 0.1;
                 this.camera.y += (this.targetCamera.y - this.camera.y) * 0.1;
                 this.camera.zoom += (this.targetCamera.zoom - this.camera.zoom) * 0.1;
                 
-                // Очистка
                 this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-                this.ctx.fillStyle = '#1a1a2e';
+                this.ctx.fillStyle = '#ffffff';
                 this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
                 
                 this.ctx.save();
                 this.ctx.translate(this.camera.x, this.camera.y);
                 this.ctx.scale(this.camera.zoom, this.camera.zoom);
                 
-                // Отрисовка сетки
                 this.drawGrid();
                 
-                // Отрисовка графа
                 if (this.currentGraphData) {
                     this.drawEdges();
                     this.drawNodes();
@@ -454,7 +784,6 @@
                 
                 this.ctx.restore();
                 
-                // Отрисовка миникарты
                 if (this.currentGraphData) {
                     this.drawMinimap();
                 }
@@ -470,7 +799,7 @@
                 const endX = startX + width + gridSize * 2;
                 const endY = startY + height + gridSize * 2;
                 
-                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+                this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.05)';
                 this.ctx.lineWidth = 1;
                 
                 for (let x = startX; x <= endX; x += gridSize) {
@@ -487,8 +816,7 @@
                     this.ctx.stroke();
                 }
                 
-                // Оси координат
-                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
                 this.ctx.lineWidth = 2;
                 
                 this.ctx.beginPath();
@@ -507,42 +835,90 @@
                 
                 const { edges, vertices } = this.currentGraphData;
                 
-                // Обычные ребра
-                this.ctx.strokeStyle = 'rgba(137, 180, 250, 0.5)';
-                this.ctx.lineWidth = 2;
-                
                 edges.forEach(edge => {
                     const from = vertices[edge.from];
                     const to = vertices[edge.to];
                     if (!from || !to) return;
                     
-                    // Проверяем, входит ли ребро в выделенный путь
                     const isPathEdge = this.isEdgeInPath(edge.from, edge.to);
                     
-                    this.ctx.strokeStyle = isPathEdge ? '#f38ba8' : 'rgba(137, 180, 250, 0.5)';
+                    // Цвет и толщина линии
+                    this.ctx.strokeStyle = isPathEdge ? '#e74c3c' : '#667eea';
                     this.ctx.lineWidth = isPathEdge ? 4 : 2;
                     
+                    // Рисуем линию
                     this.ctx.beginPath();
                     this.ctx.moveTo(from.x, from.y);
                     this.ctx.lineTo(to.x, to.y);
                     this.ctx.stroke();
                     
-                    // Вес ребра
-                    if (edge.weight !== 1) {
+                    // Рисуем стрелки в зависимости от типа ребра
+                    if (this.graphType === 'directed') {
+                        if (edge.isBidirectional) {
+                            // Двунаправленное ребро - рисуем стрелки с обеих сторон
+                            this.drawArrow(from, to, '#667eea');
+                            this.drawArrow(to, from, '#667eea');
+                        } else {
+                            // Обычное направленное ребро - одна стрелка
+                            this.drawArrow(from, to, '#667eea');
+                        }
+                    }
+                    
+                    // Отображаем вес ребра (только если не 1 или для двунаправленных)
+                    if (edge.weight !== 1 || edge.isBidirectional) {
                         const midX = (from.x + to.x) / 2;
                         const midY = (from.y + to.y) / 2;
                         
-                        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                        const text = edge.weight.toFixed(1);
-                        const textWidth = this.ctx.measureText(text).width;
-                        this.ctx.fillRect(midX - textWidth / 2 - 5, midY - 10, textWidth + 10, 20);
+                        const weightText = edge.weight.toFixed(1);
+                        const textWidth = this.ctx.measureText(weightText).width;
                         
-                        this.ctx.fillStyle = '#f9e2af';
-                        this.ctx.font = '14px Arial';
+                        // Фон для текста
+                        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+                        this.ctx.fillRect(midX - textWidth / 2 - 6, midY - 11, textWidth + 12, 22);
+                        
+                        // Рамка
+                        this.ctx.strokeStyle = '#667eea';
+                        this.ctx.lineWidth = 1;
+                        this.ctx.strokeRect(midX - textWidth / 2 - 6, midY - 11, textWidth + 12, 22);
+                        
+                        // Текст
+                        this.ctx.fillStyle = '#667eea';
+                        this.ctx.font = 'bold 13px Arial';
                         this.ctx.textAlign = 'center';
-                        this.ctx.fillText(text, midX, midY + 5);
+                        this.ctx.textBaseline = 'middle';
+                        this.ctx.fillText(weightText, midX, midY);
                     }
                 });
+            }
+
+            drawArrow(from, to, color = '#667eea') {
+                const dx = to.x - from.x;
+                const dy = to.y - from.y;
+                const length = Math.sqrt(dx * dx + dy * dy);
+                if (length === 0) return;
+                
+                const unitX = dx / length;
+                const unitY = dy / length;
+                
+                // Точка начала стрелки (немного отступаем от вершины)
+                const arrowX = to.x - unitX * 28;
+                const arrowY = to.y - unitY * 28;
+                
+                const arrowSize = 12;
+                
+                this.ctx.fillStyle = color;
+                this.ctx.beginPath();
+                this.ctx.moveTo(arrowX, arrowY);
+                this.ctx.lineTo(
+                    arrowX - unitX * arrowSize + unitY * arrowSize * 0.6,
+                    arrowY - unitY * arrowSize - unitX * arrowSize * 0.6
+                );
+                this.ctx.lineTo(
+                    arrowX - unitX * arrowSize - unitY * arrowSize * 0.6,
+                    arrowY - unitY * arrowSize + unitX * arrowSize * 0.6
+                );
+                this.ctx.closePath();
+                this.ctx.fill();
             }
             
             drawNodes() {
@@ -556,21 +932,21 @@
                     const isHighlighted = this.highlightedVertices.includes(index);
                     const isInPath = this.highlightedPath.includes(index);
                     
-                    // Тень
-                    this.ctx.shadowColor = isHighlighted ? 'rgba(249, 226, 175, 0.8)' : 
-                                          isInPath ? 'rgba(243, 139, 168, 0.8)' : 
-                                          'rgba(0, 0, 0, 0.3)';
-                    this.ctx.shadowBlur = isHighlighted || isInPath ? 15 : 10;
+                    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+                    this.ctx.shadowBlur = isHighlighted || isInPath ? 15 : 8;
+                    this.ctx.shadowOffsetX = 0;
+                    this.ctx.shadowOffsetY = 3;
                     
-                    // Круг вершины
                     this.ctx.beginPath();
                     this.ctx.arc(v.x, v.y, 25, 0, Math.PI * 2);
-                    this.ctx.fillStyle = isHighlighted ? '#f9e2af' : 
-                                        isInPath ? '#f38ba8' : 
-                                        '#89b4fa';
+                    
+                    let fillColor = '#667eea';
+                    if (isHighlighted) fillColor = '#f39c12';
+                    if (isInPath) fillColor = '#e74c3c';
+                    
+                    this.ctx.fillStyle = fillColor;
                     this.ctx.fill();
                     
-                    // Обводка
                     this.ctx.strokeStyle = 'white';
                     this.ctx.lineWidth = (isHighlighted || isInPath) ? 4 : 2;
                     this.ctx.stroke();
@@ -578,8 +954,7 @@
                     this.ctx.shadowColor = 'transparent';
                     this.ctx.shadowBlur = 0;
                     
-                    // Номер вершины
-                    this.ctx.fillStyle = '#1e1e2e';
+                    this.ctx.fillStyle = 'white';
                     this.ctx.font = 'bold 16px Arial';
                     this.ctx.textAlign = 'center';
                     this.ctx.textBaseline = 'middle';
@@ -589,12 +964,11 @@
             
             drawMinimap() {
                 this.minimapCtx.clearRect(0, 0, 200, 150);
-                this.minimapCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                this.minimapCtx.fillStyle = 'rgba(255, 255, 255, 0.9)';
                 this.minimapCtx.fillRect(0, 0, 200, 150);
                 
-                const { vertices, edges } = this.currentGraphData;
+                const { vertices } = this.currentGraphData;
                 
-                // Находим границы графа
                 let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
                 vertices.forEach(v => {
                     if (v) {
@@ -611,37 +985,42 @@
                 const offsetX = 100 - (minX + maxX) / 2 * scale;
                 const offsetY = 75 - (minY + maxY) / 2 * scale;
                 
-                // Вершины
                 vertices.forEach(v => {
                     if (!v) return;
-                    this.minimapCtx.fillStyle = '#89b4fa';
+                    this.minimapCtx.fillStyle = '#667eea';
                     this.minimapCtx.beginPath();
                     this.minimapCtx.arc(v.x * scale + offsetX, v.y * scale + offsetY, 2, 0, Math.PI * 2);
                     this.minimapCtx.fill();
                 });
                 
-                // Видимая область
                 const viewX = -this.camera.x / this.camera.zoom * scale + offsetX;
                 const viewY = -this.camera.y / this.camera.zoom * scale + offsetY;
                 const viewW = this.canvas.width / this.camera.zoom * scale;
                 const viewH = this.canvas.height / this.camera.zoom * scale;
                 
-                this.minimapCtx.strokeStyle = '#667eea';
+                this.minimapCtx.strokeStyle = '#e74c3c';
                 this.minimapCtx.lineWidth = 2;
                 this.minimapCtx.strokeRect(viewX, viewY, viewW, viewH);
+                
+                // Добавляем текст-подсказку на миникарте
+                this.minimapCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                this.minimapCtx.font = '10px Arial';
+                this.minimapCtx.textAlign = 'center';
+                this.minimapCtx.fillText('2x клик - центр', 100, 140);
             }
             
             isEdgeInPath(from, to) {
                 for (let i = 0; i < this.highlightedPath.length - 1; i++) {
                     if ((this.highlightedPath[i] === from && this.highlightedPath[i + 1] === to) ||
-                        (this.highlightedPath[i] === to && this.highlightedPath[i + 1] === from)) {
+                        (this.graphType === 'undirected' && 
+                         this.highlightedPath[i] === to && this.highlightedPath[i + 1] === from)) {
                         return true;
                     }
                 }
                 return false;
             }
             
-            highlightVertices(vertices, color = '#f9e2af') {
+            highlightVertices(vertices) {
                 this.highlightedVertices = vertices;
                 this.highlightedPath = [];
             }
@@ -662,17 +1041,54 @@
             }
         }
         
-        // Создаем экземпляр
-        const graphCanvas = new InfiniteGraphCanvas();
+        // Глобальные переменные
+        const graphCanvas = new InteractiveGraphCanvas();
+        let currentGraphData = null;
+        let currentMatrix = null;
+        let selectedTraversal = 'bfs';
         
-        // Функции для работы с графом
+        // Функции для работы с popup меню
+        function showTraversalMenu() {
+            const menu = document.getElementById('traversalMenu');
+            menu.style.display = 'block';
+            
+            const rect = menu.getBoundingClientRect();
+            menu.style.left = (window.innerWidth - rect.width) / 2 + 'px';
+            menu.style.top = (window.innerHeight - rect.height) / 2 + 'px';
+            
+            setTimeout(() => {
+                document.addEventListener('click', closeTraversalMenu);
+            }, 100);
+        }
+        
+        function closeTraversalMenu(e) {
+            const menu = document.getElementById('traversalMenu');
+            if (!menu.contains(e.target)) {
+                menu.style.display = 'none';
+                document.removeEventListener('click', closeTraversalMenu);
+            }
+        }
+        
+        function selectTraversal(type) {
+            selectedTraversal = type;
+            
+            document.querySelectorAll('.traversal-option').forEach(opt => {
+                opt.classList.remove('selected');
+            });
+            document.querySelector(`[data-type="${type}"]`).classList.add('selected');
+        }
+        
+        function setGraphType(type) {
+            graphCanvas.setGraphType(type);
+        }
+        
         function showManualInput() {
-            document.getElementById('inputModal').style.display = 'flex';
+            document.getElementById('inputModal').classList.add('active');
             document.getElementById('matrixInput').focus();
         }
         
         function closeModal() {
-            document.getElementById('inputModal').style.display = 'none';
+            document.getElementById('inputModal').classList.remove('active');
         }
         
         document.getElementById('inputModal').addEventListener('click', function(e) {
@@ -730,39 +1146,47 @@
         async function buildGraph(matrix) {
             try {
                 showStatus('Построение графа...');
-                const graphData = await window.cpp.buildGraph(matrix);
+                
+                let processedMatrix = matrix;
+                if (graphCanvas.graphType === 'undirected') {
+                    processedMatrix = matrix.map((row, i) => 
+                        row.map((val, j) => val !== 0 || matrix[j][i] !== 0 ? Math.max(val, matrix[j][i]) : 0)
+                    );
+                }
+                
+                const graphData = await window.cpp.buildGraph(processedMatrix);
                 currentGraphData = graphData;
-                currentMatrix = matrix;
-                graphCanvas.setGraphData(graphData);
-                showStatus(`Граф: ${graphData.numVertices} вершин, ${graphData.edges.length} рёбер`);
+                graphCanvas.setGraphData(graphData, matrix);
+                showStatus(`Граф: ${graphData.numVertices} вершин, ${graphData.edges.length} рёбер (${graphCanvas.graphType === 'directed' ? 'ориентированный' : 'неориентированный'})`);
             } catch (e) {
                 showStatus('Ошибка: ' + e.message, true);
             }
         }
         
-        async function runBFS() {
-            if (!currentGraphData) return showStatus('Сначала постройте граф', true);
-            const startVertex = parseInt(document.getElementById('bfsStart').value);
+        async function runTraversal() {
+            const menu = document.getElementById('traversalMenu');
+            menu.style.display = 'none';
+            document.removeEventListener('click', closeTraversalMenu);
             
-            try {
-                const result = await window.cpp.runBFS(startVertex);
-                showAlgorithmResult('BFS обход: ' + result.join(' → '));
-                graphCanvas.highlightVertices(result);
-            } catch (e) {
-                showStatus('Ошибка BFS: ' + e.message, true);
+            if (!currentGraphData) return showStatus('Сначала постройте граф', true);
+            const startVertex = parseInt(document.getElementById('traversalStartVertex').value);
+            
+            if (isNaN(startVertex) || startVertex < 0 || startVertex >= currentGraphData.numVertices) {
+                return showStatus('Некорректная начальная вершина', true);
             }
-        }
-        
-        async function runDFS() {
-            if (!currentGraphData) return showStatus('Сначала постройте граф', true);
-            const startVertex = parseInt(document.getElementById('dfsStart').value);
             
             try {
-                const result = await window.cpp.runDFS(startVertex);
-                showAlgorithmResult('DFS обход: ' + result.join(' → '));
-                graphCanvas.highlightVertices(result);
+                if (selectedTraversal === 'bfs') {
+                    const result = await window.cpp.runBFS(startVertex);
+                    showAlgorithmResult(`BFS обход (от вершины ${startVertex}): ${result.join(' → ')}`);
+                    graphCanvas.highlightVertices(result);
+                } else {
+                    const result = await window.cpp.runDFS(startVertex);
+                    showAlgorithmResult(`DFS обход (от вершины ${startVertex}): ${result.join(' → ')}`);
+                    graphCanvas.highlightVertices(result);
+                }
             } catch (e) {
-                showStatus('Ошибка DFS: ' + e.message, true);
+                showStatus('Ошибка: ' + e.message, true);
             }
         }
         
@@ -790,7 +1214,7 @@
             
             try {
                 const connected = await window.cpp.checkConnectivity();
-                showAlgorithmResult(connected ? 'Граф связный' : 'Граф не связный');
+                showAlgorithmResult(connected ? '✅ Граф связный' : '❌ Граф не связный');
             } catch (e) {
                 showStatus('Ошибка: ' + e.message, true);
             }
@@ -799,7 +1223,7 @@
         function clearGraph() {
             currentGraphData = null;
             currentMatrix = null;
-            graphCanvas.setGraphData(null);
+            graphCanvas.setGraphData(null, null);
             document.getElementById('matrixInput').value = '';
             document.getElementById('algorithmResult').style.display = 'none';
             showStatus('Граф очищен');
@@ -814,11 +1238,16 @@
         function showStatus(message, isError = false) {
             const statusEl = document.getElementById('status');
             statusEl.textContent = message;
-            statusEl.style.color = isError ? '#f38ba8' : '#a6e3a1';
+            statusEl.style.color = isError ? '#e74c3c' : '#7f8c8d';
         }
         
-        // Инициализация
-        showStatus('Готов к работе. Используйте мышь для навигации по холсту');
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('traversalMenu').addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+        });
+        
+        showStatus('🖱️ Перетаскивайте вершины | 🖱️ Панорамируйте холст | 🔍 Колесико для зума | 2x клик на миникарте - центр');
     </script>
 </body>
 </html>
