@@ -6,7 +6,10 @@ contextBridge.exposeInMainWorld('cpp', {
     runBFS: (startVertex) => ipcRenderer.invoke('run-bfs', startVertex),
     runDFS: (startVertex) => ipcRenderer.invoke('run-dfs', startVertex),
     findShortestPath: (start, end) => ipcRenderer.invoke('find-shortest-path', start, end),
-    checkConnectivity: () => ipcRenderer.invoke('check-connectivity')
+    checkConnectivity: () => ipcRenderer.invoke('check-connectivity'),
+    checkEulerian: () => ipcRenderer.invoke('check-eulerian'),
+    findEulerianCycle: () => ipcRenderer.invoke('find-eulerian-cycle'),
+    solveTSP: () => ipcRenderer.invoke('solve-tsp')
 })
 
 contextBridge.exposeInMainWorld('electron', {

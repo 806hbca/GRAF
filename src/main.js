@@ -32,9 +32,7 @@ function createWindow() {
 function registerIpcHandlers() {
     // Построение графа
     ipcMain.handle('build-graph', async (event, matrix) => {
-        console.log('build-graph called')
         if (!addon) throw new Error('Addon not loaded')
-        
         currentMatrix = matrix
         return addon.buildGraph(matrix)
     })
@@ -61,6 +59,24 @@ function registerIpcHandlers() {
     ipcMain.handle('check-connectivity', async () => {
         if (!addon || !currentMatrix) throw new Error('Addon or matrix not available')
         return addon.isConnected(currentMatrix)
+    })
+
+    // Проверка на эйлеровость
+    ipcMain.handle('check-eulerian', async () => {
+        if (!addon || !currentMatrix) throw new Error('Addon or matrix not available')
+        return addon.isEulerian(currentMatrix)
+    })
+
+    // Поиск эйлерова цикла
+    ipcMain.handle('find-eulerian-cycle', async () => {
+        if (!addon || !currentMatrix) throw new Error('Addon or matrix not available')
+        return addon.findEulerianCycle(currentMatrix)
+    })
+
+    // Задача коммивояжера
+    ipcMain.handle('solve-tsp', async () => {
+        if (!addon || !currentMatrix) throw new Error('Addon or matrix not available')
+        return addon.solveTSP(currentMatrix)
     })
 
     // Открытие файла

@@ -4,7 +4,7 @@
   "description": "Graph visualization with C++ backend",
   "main": "src/main.js",
   "scripts": {
-    "build-addon": "cd addon && node-gyp configure && node-gyp build",
+    "build-addon": "cd addon && rmdir /s /q build && node-gyp configure && node-gyp build",
     "start": "npm run build-addon && electron ."
   },
   "keywords": [],

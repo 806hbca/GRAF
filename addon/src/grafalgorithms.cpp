@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <queue>
 #include <limits>
+#include <stack>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -57,25 +58,279 @@ public:
         return numVertices;
     }
 
-    // Вычисление позиций вершин для визуализации (по кругу)
-    std::vector<std::pair<double, double>> calculateVertexPositions(double centerX, double centerY, double radius)
+    // Проверка на эйлеровость
+    bool isEulerian()
     {
-        std::vector<std::pair<double, double>> positions;
-
         if (numVertices == 0)
-            return positions;
+            return false;
+
+        // Проверяем связность (игнорируя вершины степени 0)
+        if (!isConnectedIgnoringIsolated())
+            return false;
+
+        // Считаем степени вершин
+        std::vector<int> degrees(numVertices, 0);
+        for (int i = 0; i < numVertices; i++)
+        {
+            degrees[i] = adjacencyList[i].size();
+        }
+
+        // Для неориентированного графа все степени должны быть четными
+        int oddCount = 0;
+        for (int i = 0; i < numVertices; i++)
+        {
+            if (degrees[i] % 2 != 0)
+            {
+                oddCount++;
+            }
+        }
+
+        return (oddCount == 0);
+    }
+
+    // Проверка связности, игнорируя изолированные вершины
+    bool isConnectedIgnoringIsolated()
+    {
+        std::vector<bool> visited(numVertices, false);
+
+        // Находим первую вершину с ненулевой степенью
+        int startVertex = -1;
+        for (int i = 0; i < numVertices; i++)
+        {
+            if (adjacencyList[i].size() > 0)
+            {
+                startVertex = i;
+                break;
+            }
+        }
+
+        if (startVertex == -1)
+            return true; // Все вершины изолированы
+
+        // DFS от этой вершины
+        std::stack<int> st;
+        st.push(startVertex);
+        visited[startVertex] = true;
+
+        while (!st.empty())
+        {
+            int v = st.top();
+            st.pop();
+
+            for (const auto &neighbor : adjacencyList[v])
+            {
+                if (!visited[neighbor.vertex])
+                {
+                    visited[neighbor.vertex] = true;
+                    st.push(neighbor.vertex);
+                }
+            }
+        }
+
+        // Проверяем, что все вершины с ненулевой степенью посещены
+        for (int i = 0; i < numVertices; i++)
+        {
+            if (adjacencyList[i].size() > 0 && !visited[i])
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    // Поиск эйлерова цикла (алгоритм Флёри)
+    std::vector<int> findEulerianCycle()
+    {
+        std::vector<int> cycle;
+
+        if (!isEulerian())
+            return cycle;
+        if (numVertices == 0)
+            return cycle;
+
+        // Копируем граф для модификации
+        std::vector<std::vector<double>> tempMatrix(numVertices, std::vector<double>(numVertices, 0));
+        for (int i = 0; i < numVertices; i++)
+        {
+            for (const auto &neighbor : adjacencyList[i])
+            {
+                tempMatrix[i][neighbor.vertex] = neighbor.weight;
+            }
+        }
+
+        // Находим начальную вершину (с ненулевой степенью)
+        int startVertex = 0;
+        for (int i = 0; i < numVertices; i++)
+        {
+            if (adjacencyList[i].size() > 0)
+            {
+                startVertex = i;
+                break;
+            }
+        }
+
+        std::stack<int> st;
+        st.push(startVertex);
+
+        while (!st.empty())
+        {
+            int v = st.top();
+
+            // Ищем соседа
+            int neighbor = -1;
+            for (int i = 0; i < numVertices; i++)
+            {
+                if (tempMatrix[v][i] != 0)
+                {
+                    neighbor = i;
+                    break;
+                }
+            }
+
+            if (neighbor != -1)
+            {
+                // Удаляем ребро
+                tempMatrix[v][neighbor] = 0;
+                tempMatrix[neighbor][v] = 0;
+                st.push(neighbor);
+            }
+            else
+            {
+                cycle.push_back(v);
+                st.pop();
+            }
+        }
+
+        return cycle;
+    }
+
+    // Задача коммивояжера (метод ветвей и границ)
+    struct TSPResult
+    {
+        std::vector<int> path;
+        double cost;
+    };
+
+    TSPResult solveTSP()
+    {
+        TSPResult result;
+        result.cost = std::numeric_limits<double>::infinity();
+
+        if (numVertices < 2)
+            return result;
+
+        // Строим полную матрицу
+        std::vector<std::vector<double>> costMatrix(numVertices, std::vector<double>(numVertices, std::numeric_limits<double>::infinity()));
 
         for (int i = 0; i < numVertices; i++)
         {
-            double angle = 2.0 * M_PI * i / numVertices - M_PI / 2.0;
-            double x = centerX + radius * cos(angle);
-            double y = centerY + radius * sin(angle);
-            positions.push_back({x, y});
+            for (const auto &neighbor : adjacencyList[i])
+            {
+                costMatrix[i][neighbor.vertex] = neighbor.weight;
+            }
+            costMatrix[i][i] = 0;
         }
 
-        return positions;
+        // Для вершин без прямого пути используем Floyd-Warshall для нахождения кратчайших путей
+        for (int k = 0; k < numVertices; k++)
+        {
+            for (int i = 0; i < numVertices; i++)
+            {
+                for (int j = 0; j < numVertices; j++)
+                {
+                    if (costMatrix[i][k] != std::numeric_limits<double>::infinity() &&
+                        costMatrix[k][j] != std::numeric_limits<double>::infinity())
+                    {
+                        costMatrix[i][j] = std::min(costMatrix[i][j], costMatrix[i][k] + costMatrix[k][j]);
+                    }
+                }
+            }
+        }
+
+        // Ветви и границы
+        std::vector<int> currentPath = {0};
+        std::vector<bool> visited(numVertices, false);
+        visited[0] = true;
+
+        tspBranchAndBound(costMatrix, currentPath, visited, 0, 0, result);
+
+        return result;
     }
 
+private:
+    void tspBranchAndBound(const std::vector<std::vector<double>> &costMatrix,
+                           std::vector<int> &currentPath,
+                           std::vector<bool> &visited,
+                           int currentVertex,
+                           double currentCost,
+                           TSPResult &bestResult)
+    {
+
+        if (currentPath.size() == numVertices)
+        {
+            // Замыкаем цикл
+            double totalCost = currentCost + costMatrix[currentVertex][0];
+            if (totalCost < bestResult.cost)
+            {
+                bestResult.cost = totalCost;
+                bestResult.path = currentPath;
+                bestResult.path.push_back(0); // Возвращаемся в начало
+            }
+            return;
+        }
+
+        // Нижняя граница
+        double lowerBound = currentCost + calculateLowerBound(costMatrix, currentPath, visited);
+        if (lowerBound >= bestResult.cost)
+            return;
+
+        for (int nextVertex = 0; nextVertex < numVertices; nextVertex++)
+        {
+            if (!visited[nextVertex] && costMatrix[currentVertex][nextVertex] != std::numeric_limits<double>::infinity())
+            {
+                visited[nextVertex] = true;
+                currentPath.push_back(nextVertex);
+
+                tspBranchAndBound(costMatrix, currentPath, visited, nextVertex,
+                                  currentCost + costMatrix[currentVertex][nextVertex], bestResult);
+
+                currentPath.pop_back();
+                visited[nextVertex] = false;
+            }
+        }
+    }
+
+    double calculateLowerBound(const std::vector<std::vector<double>> &costMatrix,
+                               const std::vector<int> &currentPath,
+                               const std::vector<bool> &visited)
+    {
+        double bound = 0;
+
+        // Для каждой непосещенной вершины добавляем минимальное ребро
+        for (int i = 0; i < numVertices; i++)
+        {
+            if (!visited[i] || i == currentPath.back())
+            {
+                double minEdge = std::numeric_limits<double>::infinity();
+                for (int j = 0; j < numVertices; j++)
+                {
+                    if (!visited[j] || j == currentPath[0])
+                    {
+                        minEdge = std::min(minEdge, costMatrix[i][j]);
+                    }
+                }
+                if (minEdge != std::numeric_limits<double>::infinity())
+                {
+                    bound += minEdge;
+                }
+            }
+        }
+
+        return bound / 2;
+    }
+
+public:
     // BFS обход
     std::vector<int> BFS(int startVertex)
     {
@@ -176,7 +431,6 @@ public:
             }
         }
 
-        // Восстанавливаем путь
         if (parent[end] != -1 || start == end)
         {
             for (int v = end; v != -1; v = parent[v])
@@ -189,7 +443,7 @@ public:
         return path;
     }
 
-    // Проверка связности графа
+    // Проверка связности
     bool isConnected()
     {
         if (numVertices == 0)
@@ -223,6 +477,24 @@ public:
         }
         return true;
     }
+
+    std::vector<std::pair<double, double>> calculateVertexPositions(double centerX, double centerY, double radius)
+    {
+        std::vector<std::pair<double, double>> positions;
+
+        if (numVertices == 0)
+            return positions;
+
+        for (int i = 0; i < numVertices; i++)
+        {
+            double angle = 2.0 * M_PI * i / numVertices - M_PI / 2.0;
+            double x = centerX + radius * cos(angle);
+            double y = centerY + radius * sin(angle);
+            positions.push_back({x, y});
+        }
+
+        return positions;
+    }
 };
 
 // Синхронная функция построения графа
@@ -253,14 +525,12 @@ Napi::Value BuildGraph(const Napi::CallbackInfo &info)
     GRAF graf;
     graf.buildFromMatrix(matrix);
 
-    // Динамический радиус в зависимости от количества вершин
     double radius = 200.0;
     if (n > 10)
-        radius = 200.0 + (n - 10) * 25.0; // Увеличиваем радиус на 25 за каждую вершину сверх 10
+        radius = 200.0 + (n - 10) * 25.0;
     if (n > 20)
-        radius = 200.0 + 10 * 25.0 + (n - 20) * 15.0; // Замедляем рост после 20 вершин
+        radius = 200.0 + 10 * 25.0 + (n - 20) * 15.0;
 
-    // Центр холста (можно передавать параметром)
     double centerX = 450.0;
     double centerY = 300.0;
 
@@ -279,7 +549,6 @@ Napi::Value BuildGraph(const Napi::CallbackInfo &info)
     }
     result.Set("vertices", posArray);
 
-    // Формируем ребра, объединяя двунаправленные
     Napi::Array edgesArray = Napi::Array::New(env);
     int edgeIndex = 0;
 
@@ -316,10 +585,122 @@ Napi::Value BuildGraph(const Napi::CallbackInfo &info)
     }
     result.Set("edges", edgesArray);
     result.Set("numVertices", n);
-    result.Set("radius", radius); // Передаем радиус для информации
+    result.Set("radius", radius);
 
     return result;
 }
+
+// Проверка на эйлеровость
+Napi::Value CheckEulerian(const Napi::CallbackInfo &info)
+{
+    Napi::Env env = info.Env();
+
+    if (info.Length() < 1 || !info[0].IsArray())
+    {
+        Napi::TypeError::New(env, "Expected adjacency matrix").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    Napi::Array matrixArray = info[0].As<Napi::Array>();
+    int n = matrixArray.Length();
+
+    std::vector<std::vector<double>> matrix(n, std::vector<double>(n, 0));
+    for (int i = 0; i < n; i++)
+    {
+        Napi::Array row = matrixArray.Get(i).As<Napi::Array>();
+        for (int j = 0; j < n; j++)
+        {
+            matrix[i][j] = row.Get(j).As<Napi::Number>().DoubleValue();
+        }
+    }
+
+    GRAF graf;
+    graf.buildFromMatrix(matrix);
+
+    return Napi::Boolean::New(env, graf.isEulerian());
+}
+
+// Поиск эйлерова цикла
+Napi::Value FindEulerianCycle(const Napi::CallbackInfo &info)
+{
+    Napi::Env env = info.Env();
+
+    if (info.Length() < 1 || !info[0].IsArray())
+    {
+        Napi::TypeError::New(env, "Expected adjacency matrix").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    Napi::Array matrixArray = info[0].As<Napi::Array>();
+    int n = matrixArray.Length();
+
+    std::vector<std::vector<double>> matrix(n, std::vector<double>(n, 0));
+    for (int i = 0; i < n; i++)
+    {
+        Napi::Array row = matrixArray.Get(i).As<Napi::Array>();
+        for (int j = 0; j < n; j++)
+        {
+            matrix[i][j] = row.Get(j).As<Napi::Number>().DoubleValue();
+        }
+    }
+
+    GRAF graf;
+    graf.buildFromMatrix(matrix);
+
+    auto cycle = graf.findEulerianCycle();
+
+    Napi::Array result = Napi::Array::New(env, cycle.size());
+    for (size_t i = 0; i < cycle.size(); i++)
+    {
+        result.Set(i, cycle[i]);
+    }
+
+    return result;
+}
+
+// Решение задачи коммивояжера
+Napi::Value SolveTSP(const Napi::CallbackInfo &info)
+{
+    Napi::Env env = info.Env();
+
+    if (info.Length() < 1 || !info[0].IsArray())
+    {
+        Napi::TypeError::New(env, "Expected adjacency matrix").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    Napi::Array matrixArray = info[0].As<Napi::Array>();
+    int n = matrixArray.Length();
+
+    std::vector<std::vector<double>> matrix(n, std::vector<double>(n, 0));
+    for (int i = 0; i < n; i++)
+    {
+        Napi::Array row = matrixArray.Get(i).As<Napi::Array>();
+        for (int j = 0; j < n; j++)
+        {
+            matrix[i][j] = row.Get(j).As<Napi::Number>().DoubleValue();
+        }
+    }
+
+    GRAF graf;
+    graf.buildFromMatrix(matrix);
+
+    auto tspResult = graf.solveTSP();
+
+    Napi::Object result = Napi::Object::New(env);
+
+    Napi::Array pathArray = Napi::Array::New(env, tspResult.path.size());
+    for (size_t i = 0; i < tspResult.path.size(); i++)
+    {
+        pathArray.Set(i, tspResult.path[i]);
+    }
+
+    result.Set("path", pathArray);
+    result.Set("cost", tspResult.cost);
+
+    return result;
+}
+
 // BFS функция
 Napi::Value RunBFS(const Napi::CallbackInfo &info)
 {
@@ -473,6 +854,9 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
     exports.Set("dfs", Napi::Function::New(env, RunDFS));
     exports.Set("shortestPath", Napi::Function::New(env, FindShortestPath));
     exports.Set("isConnected", Napi::Function::New(env, CheckConnectivity));
+    exports.Set("isEulerian", Napi::Function::New(env, CheckEulerian));
+    exports.Set("findEulerianCycle", Napi::Function::New(env, FindEulerianCycle));
+    exports.Set("solveTSP", Napi::Function::New(env, SolveTSP));
     return exports;
 }
 

@@ -313,7 +313,40 @@
             width: 100%;
             margin-top: 10px;
         }
+        .option-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 10px;
+        }
 
+        .option-item:hover {
+            background: #f1f3f4;
+        }
+
+        .option-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #f1f3f4;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .option-info {
+            flex: 1;
+        }
+
+        .option-title {
+            font-weight: 600;
+            color: #7f8c8d
+        }
         #minimap {
             position: fixed;
             bottom: 20px;
@@ -372,6 +405,7 @@
             <button onclick="showManualInput()">📝 Ввести граф вручную</button>
             <button class="success" onclick="loadFromFile()">📁 Загрузить из файла</button>
             <button class="danger" onclick="clearGraph()">🗑️ Очистить</button>
+            <button class="warning" onclick="showOptionsMenu()">⚙️ Опции</button>
             
             <div class="graph-type-selector">
                 <label>
@@ -457,7 +491,34 @@
             <button onclick="runTraversal()">▶ Запустить обход</button>
         </div>
     </div>
-
+    <!-- Popup меню для дополнительных опций -->
+    <div id="optionsMenu" class="popup-menu" style="display: none;">
+        <h3>Дополнительные опции</h3>
+        
+        <div class="option-item" onclick="checkEulerianGraph()">
+            <div class="option-icon">🔍</div>
+            <div class="option-info">
+                <div class="option-title">Проверить на эйлеровость</div>
+                <div class="option-desc">Проверяет, является ли граф эйлеровым</div>
+            </div>
+        </div>
+        
+        <div class="option-item" onclick="findEulerianCycleGraph()">
+            <div class="option-icon">🔄</div>
+            <div class="option-info">
+                <div class="option-title">Найти эйлеров цикл</div>
+                <div class="option-desc">Находит эйлеров цикл в графе (если существует)</div>
+            </div>
+        </div>
+        
+        <div class="option-item" onclick="solveTSPGraph()">
+            <div class="option-icon">🎯</div>
+            <div class="option-info">
+                <div class="option-title">Задача коммивояжера</div>
+                <div class="option-desc">Решает TSP методом ветвей и границ</div>
+            </div>
+        </div>
+    </div>
     <script>
         class InteractiveGraphCanvas {
             constructor() {
@@ -468,7 +529,7 @@
                 this.minimapCanvas = document.getElementById('minimapCanvas');
                 this.minimapCtx = this.minimapCanvas.getContext('2d');
                 this.minimapContainer = document.getElementById('minimap');
-                
+
                 this.camera = {
                     x: 0,
                     y: 0,
@@ -1240,6 +1301,96 @@
             statusEl.style.color = isError ? '#e74c3c' : '#7f8c8d';
         }
         
+        // Функции для работы с меню опций
+        function showOptionsMenu() {
+            const menu = document.getElementById('optionsMenu');
+            menu.style.display = 'block';
+            
+            const rect = menu.getBoundingClientRect();
+            menu.style.left = (window.innerWidth - rect.width) / 2 + 'px';
+            menu.style.top = (window.innerHeight - rect.height) / 2 + 'px';
+            
+            setTimeout(() => {
+                document.addEventListener('click', closeOptionsMenu);
+            }, 100);
+        }
+
+        function closeOptionsMenu(e) {
+            const menu = document.getElementById('optionsMenu');
+            if (!menu.contains(e.target)) {
+                menu.style.display = 'none';
+                document.removeEventListener('click', closeOptionsMenu);
+            }
+        }
+
+        async function checkEulerianGraph() {
+            closeOptionsMenuHelper();
+            
+            if (!currentGraphData) return showStatus('Сначала постройте граф', true);
+            
+            try {
+                const isEulerian = await window.cpp.checkEulerian();
+                showAlgorithmResult(isEulerian ? '✅ Граф эйлеров (все степени вершин четные)' : '❌ Граф не эйлеров');
+            } catch (e) {
+                showStatus('Ошибка: ' + e.message, true);
+            }
+        }
+
+        async function findEulerianCycleGraph() {
+            closeOptionsMenuHelper();
+            
+            if (!currentGraphData) return showStatus('Сначала постройте граф', true);
+            
+            try {
+                const cycle = await window.cpp.findEulerianCycle();
+                if (cycle.length > 0) {
+                    showAlgorithmResult(`Эйлеров цикл: ${cycle.join(' → ')}`);
+                    graphCanvas.highlightPath(cycle);
+                } else {
+                    showAlgorithmResult('Эйлеров цикл не найден (граф не эйлеров)');
+                }
+            } catch (e) {
+                showStatus('Ошибка: ' + e.message, true);
+            }
+        }
+
+        async function solveTSPGraph() {
+            closeOptionsMenuHelper();
+            
+            if (!currentGraphData) return showStatus('Сначала постройте граф', true);
+            
+            try {
+                showStatus('Решение задачи коммивояжера...');
+                const result = await window.cpp.solveTSP();
+                
+                if (result.path.length > 0) {
+                    showAlgorithmResult(`Оптимальный маршрут: ${result.path.join(' → ')} | Стоимость: ${result.cost.toFixed(2)}`);
+                    graphCanvas.highlightPath(result.path);
+                } else {
+                    showAlgorithmResult('Не удалось найти решение TSP');
+                }
+            } catch (e) {
+                showStatus('Ошибка: ' + e.message, true);
+            }
+        }
+
+        function closeOptionsMenuHelper() {
+            const menu = document.getElementById('optionsMenu');
+            menu.style.display = 'none';
+            document.removeEventListener('click', closeOptionsMenu);
+        }
+
+        // Не забудьте добавить обработчик для optionsMenu
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('traversalMenu').addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+            
+            document.getElementById('optionsMenu').addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+        });
+
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('traversalMenu').addEventListener('click', (e) => {
                 e.stopPropagation();
