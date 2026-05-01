@@ -1,0 +1,20 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "C:/Users/Rick/Desktop/GRAF/GRAF/node_modules/node-addon-api",
+                "C:/Users/Rick/AppData/Local/node-gyp/Cache/25.8.1/include/node"
+            ],
+            "defines": [
+                "NAPI_DISABLE_CPP_EXCEPTIONS",
+                "BUILDING_NODE_EXTENSION"
+            ],
+            "compilerPath": "C:/Program Files/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.40.33807/bin/Hostx64/x64/cl.exe",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "windows-msvc-x64"
+        }
+    ],
+    "version": 4
+}

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Тест</title>
+    <style>
+        body { 
+            background: #1e1e2e; 
+            color: white; 
+            font-family: sans-serif;
+            padding: 40px;
+        }
+        button {
+            padding: 15px 30px;
+            font-size: 18px;
+            background: #89b4fa;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Тест работает!</h1>
+    <input id="inputVal" type="number" value="3.14" /><br><br>
+    <button id="btn">Вычислить (C++)</button>
+    <div id="status" style="margin-top:20px; color: #f38ba8;"></div>
+    <div id="result" style="margin-top:10px; font-size:24px; color: #a6e3a1;"></div>
+
+    <script>
+        console.log('HTML загрузился!')
+        console.log('window.cpp =', window.cpp)
+
+        document.getElementById('btn').addEventListener('click', async () => {
+            const val = parseFloat(document.getElementById('inputVal').value)
+            document.getElementById('status').textContent = 'Считаю...'
+
+            try {
+                const start = performance.now()
+                const result = await window.cpp.calculate(val)
+                const elapsed = (performance.now() - start).toFixed(1)
+                document.getElementById('status').textContent = `Готово за ${elapsed}ms`
+                document.getElementById('result').textContent = `Результат: ${result.toFixed(6)}`
+            } catch(e) {
+                document.getElementById('status').textContent = 'Ошибка: ' + e.message
+                console.error(e)
+            }
+        })
+    </script>
+</body>
+</html>
