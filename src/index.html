@@ -469,7 +469,6 @@
                 this.minimapCtx = this.minimapCanvas.getContext('2d');
                 this.minimapContainer = document.getElementById('minimap');
                 
-                // Параметры камеры
                 this.camera = {
                     x: 0,
                     y: 0,
@@ -482,7 +481,6 @@
                     zoom: 1
                 };
                 
-                // Состояния мыши
                 this.mouse = {
                     x: 0,
                     y: 0,
@@ -499,7 +497,6 @@
                     dragStartY: 0
                 };
                 
-                // Данные графа
                 this.currentGraphData = null;
                 this.currentMatrix = null;
                 this.graphType = 'undirected';
@@ -511,9 +508,7 @@
                 
                 this.highlightedVertices = [];
                 this.highlightedPath = [];
-                
-                // Обработанные ребра (для отрисовки двунаправленных)
-                this.processedEdges = [];
+                this.highlightedEdges = [];  // Новый массив для подсветки ребер пути
                 
                 this.init();
             }
@@ -541,7 +536,6 @@
                 this.canvas.addEventListener('wheel', (e) => this.onWheel(e));
                 this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
                 
-                // Двойной клик на миникарте для центрирования
                 this.minimapContainer.addEventListener('dblclick', (e) => {
                     this.centerView();
                 });
@@ -558,6 +552,7 @@
             findVertexAt(worldX, worldY) {
                 if (!this.currentGraphData || !this.vertexPositions.length) return -1;
                 
+                // Адаптивный радиус поиска в зависимости от зума
                 const radius = 25 / this.camera.zoom;
                 
                 for (let i = this.vertexPositions.length - 1; i >= 0; i--) {
@@ -573,7 +568,6 @@
             
             centerView() {
                 if (!this.currentGraphData || !this.vertexPositions.length) {
-                    // Центрируем на начало координат
                     const rect = this.container.getBoundingClientRect();
                     this.targetCamera.x = rect.width / 2;
                     this.targetCamera.y = rect.height / 2;
@@ -581,59 +575,28 @@
                     return;
                 }
                 
-                // Находим центр графа
-                let sumX = 0, sumY = 0;
+                // Автоматически подбираем зум в зависимости от размера графа
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
                 this.vertexPositions.forEach(pos => {
-                    sumX += pos.x;
-                    sumY += pos.y;
+                    minX = Math.min(minX, pos.x - 50);
+                    minY = Math.min(minY, pos.y - 50);
+                    maxX = Math.max(maxX, pos.x + 50);
+                    maxY = Math.max(maxY, pos.y + 50);
                 });
                 
-                const centerX = sumX / this.vertexPositions.length;
-                const centerY = sumY / this.vertexPositions.length;
-                
+                const graphWidth = maxX - minX;
+                const graphHeight = maxY - minY;
                 const rect = this.container.getBoundingClientRect();
                 
-                // Центрируем камеру на центре графа
-                this.targetCamera.zoom = 1;
+                const zoomX = rect.width / graphWidth;
+                const zoomY = rect.height / graphHeight;
+                this.targetCamera.zoom = Math.min(zoomX, zoomY, 1.5);
+                
+                const centerX = (minX + maxX) / 2;
+                const centerY = (minY + maxY) / 2;
+                
                 this.targetCamera.x = rect.width / 2 - centerX * this.targetCamera.zoom;
                 this.targetCamera.y = rect.height / 2 - centerY * this.targetCamera.zoom;
-            }
-            
-            processEdges() {
-                if (!this.currentGraphData) return;
-                
-                this.processedEdges = [];
-                const processed = new Set();
-                
-                this.currentGraphData.edges.forEach(edge => {
-                    const key1 = `${edge.from}-${edge.to}`;
-                    const key2 = `${edge.to}-${edge.from}`;
-                    
-                    if (processed.has(key1) || processed.has(key2)) return;
-                    
-                    // Проверяем, есть ли обратное ребро с таким же весом
-                    const reverseEdge = this.currentGraphData.edges.find(e => 
-                        e.from === edge.to && e.to === edge.from && e.weight === edge.weight
-                    );
-                    
-                    if (reverseEdge) {
-                        // Двунаправленное ребро
-                        this.processedEdges.push({
-                            ...edge,
-                            isBidirectional: true,
-                            reverseWeight: reverseEdge.weight
-                        });
-                        processed.add(key1);
-                        processed.add(key2);
-                    } else {
-                        // Обычное ребро
-                        this.processedEdges.push({
-                            ...edge,
-                            isBidirectional: false
-                        });
-                        processed.add(key1);
-                    }
-                });
             }
             
             onMouseDown(e) {
@@ -694,7 +657,6 @@
                     this.targetCamera.y = this.mouse.cameraStartY + dy;
                 }
                 
-                // Меняем курсор в зависимости от контекста
                 if (!this.mouse.isDraggingNode && !this.mouse.isPanning) {
                     const vertexIndex = this.findVertexAt(worldPos.x, worldPos.y);
                     if (vertexIndex !== -1) {
@@ -739,13 +701,11 @@
             setGraphData(graphData, matrix) {
                 this.currentGraphData = graphData;
                 this.currentMatrix = matrix;
-                this.highlightedVertices = [];
-                this.highlightedPath = [];
+                this.clearHighlights();
                 
                 this.vertexPositions = graphData.vertices.map(v => ({ x: v.x, y: v.y }));
-                //this.processEdges();
                 
-                this.resetView();
+                this.centerView();
             }
             
             setGraphType(type) {
@@ -753,13 +713,6 @@
                 if (this.currentMatrix) {
                     buildGraph(this.currentMatrix);
                 }
-            }
-            
-            resetView() {
-                const rect = this.container.getBoundingClientRect();
-                this.targetCamera.x = rect.width / 2;
-                this.targetCamera.y = rect.height / 2;
-                this.targetCamera.zoom = 1;
             }
             
             draw() {
@@ -778,6 +731,8 @@
                 this.drawGrid();
                 
                 if (this.currentGraphData) {
+                    // Сначала рисуем ребра пути (чтобы они были поверх обычных)
+                    this.drawHighlightedPathEdges();
                     this.drawEdges();
                     this.drawNodes();
                 }
@@ -830,6 +785,42 @@
                 this.ctx.stroke();
             }
             
+            // Новый метод для отрисовки ребер пути (поверх обычных ребер)
+            drawHighlightedPathEdges() {
+                if (this.highlightedPath.length < 2) return;
+                
+                const { vertices } = this.currentGraphData;
+                
+                for (let i = 0; i < this.highlightedPath.length - 1; i++) {
+                    const fromVertex = this.highlightedPath[i];
+                    const toVertex = this.highlightedPath[i + 1];
+                    
+                    const from = vertices[fromVertex];
+                    const to = vertices[toVertex];
+                    
+                    if (!from || !to) continue;
+                    
+                    // Рисуем красную линию пути
+                    this.ctx.strokeStyle = '#e74c3c';
+                    this.ctx.lineWidth = 4;
+                    this.ctx.shadowColor = 'rgba(231, 76, 60, 0.5)';
+                    this.ctx.shadowBlur = 8;
+                    
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(from.x, from.y);
+                    this.ctx.lineTo(to.x, to.y);
+                    this.ctx.stroke();
+                    
+                    this.ctx.shadowColor = 'transparent';
+                    this.ctx.shadowBlur = 0;
+                    
+                    // Рисуем стрелку для направленного графа
+                    if (this.graphType === 'directed') {
+                        this.drawArrow(from, to, '#e74c3c', 4);
+                    }
+                }
+            }
+            
             drawEdges() {
                 if (!this.currentGraphData) return;
                 
@@ -840,31 +831,29 @@
                     const to = vertices[edge.to];
                     if (!from || !to) return;
                     
+                    // Проверяем, является ли это ребро частью пути
                     const isPathEdge = this.isEdgeInPath(edge.from, edge.to);
                     
-                    // Цвет и толщина линии
-                    this.ctx.strokeStyle = isPathEdge ? '#e74c3c' : '#667eea';
-                    this.ctx.lineWidth = isPathEdge ? 4 : 2;
+                    // Пропускаем ребра пути (они рисуются отдельно)
+                    if (isPathEdge) return;
                     
-                    // Рисуем линию
+                    this.ctx.strokeStyle = '#667eea';
+                    this.ctx.lineWidth = 2;
+                    
                     this.ctx.beginPath();
                     this.ctx.moveTo(from.x, from.y);
                     this.ctx.lineTo(to.x, to.y);
                     this.ctx.stroke();
                     
-                    // Рисуем стрелки в зависимости от типа ребра
                     if (this.graphType === 'directed') {
                         if (edge.isBidirectional) {
-                            // Двунаправленное ребро - рисуем стрелки с обеих сторон
-                            this.drawArrow(from, to, '#667eea');
-                            this.drawArrow(to, from, '#667eea');
+                            this.drawArrow(from, to, '#667eea', 1);
+                            this.drawArrow(to, from, '#667eea', 1);
                         } else {
-                            // Обычное направленное ребро - одна стрелка
-                            this.drawArrow(from, to, '#667eea');
+                            this.drawArrow(from, to, '#667eea', 1);
                         }
                     }
                     
-                    // Отображаем вес ребра (только если не 1 или для двунаправленных)
                     if (edge.weight !== 1 || edge.isBidirectional) {
                         const midX = (from.x + to.x) / 2;
                         const midY = (from.y + to.y) / 2;
@@ -872,16 +861,13 @@
                         const weightText = edge.weight.toFixed(1);
                         const textWidth = this.ctx.measureText(weightText).width;
                         
-                        // Фон для текста
                         this.ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
                         this.ctx.fillRect(midX - textWidth / 2 - 6, midY - 11, textWidth + 12, 22);
                         
-                        // Рамка
                         this.ctx.strokeStyle = '#667eea';
                         this.ctx.lineWidth = 1;
                         this.ctx.strokeRect(midX - textWidth / 2 - 6, midY - 11, textWidth + 12, 22);
                         
-                        // Текст
                         this.ctx.fillStyle = '#667eea';
                         this.ctx.font = 'bold 13px Arial';
                         this.ctx.textAlign = 'center';
@@ -890,8 +876,8 @@
                     }
                 });
             }
-
-            drawArrow(from, to, color = '#667eea') {
+            
+            drawArrow(from, to, color = '#667eea', lineWidth = 1) {
                 const dx = to.x - from.x;
                 const dy = to.y - from.y;
                 const length = Math.sqrt(dx * dx + dy * dy);
@@ -900,22 +886,21 @@
                 const unitX = dx / length;
                 const unitY = dy / length;
                 
-                // Точка начала стрелки (немного отступаем от вершины)
                 const arrowX = to.x - unitX * 28;
                 const arrowY = to.y - unitY * 28;
                 
-                const arrowSize = 12;
+                const arrowSize = 10 + lineWidth;
                 
                 this.ctx.fillStyle = color;
                 this.ctx.beginPath();
                 this.ctx.moveTo(arrowX, arrowY);
                 this.ctx.lineTo(
-                    arrowX - unitX * arrowSize + unitY * arrowSize * 0.6,
-                    arrowY - unitY * arrowSize - unitX * arrowSize * 0.6
+                    arrowX - unitX * arrowSize + unitY * arrowSize * 0.5,
+                    arrowY - unitY * arrowSize - unitX * arrowSize * 0.5
                 );
                 this.ctx.lineTo(
-                    arrowX - unitX * arrowSize - unitY * arrowSize * 0.6,
-                    arrowY - unitY * arrowSize + unitX * arrowSize * 0.6
+                    arrowX - unitX * arrowSize - unitY * arrowSize * 0.5,
+                    arrowY - unitY * arrowSize + unitX * arrowSize * 0.5
                 );
                 this.ctx.closePath();
                 this.ctx.fill();
@@ -941,8 +926,8 @@
                     this.ctx.arc(v.x, v.y, 25, 0, Math.PI * 2);
                     
                     let fillColor = '#667eea';
-                    if (isHighlighted) fillColor = '#f39c12';
                     if (isInPath) fillColor = '#e74c3c';
+                    else if (isHighlighted) fillColor = '#f39c12';
                     
                     this.ctx.fillStyle = fillColor;
                     this.ctx.fill();
@@ -985,6 +970,21 @@
                 const offsetX = 100 - (minX + maxX) / 2 * scale;
                 const offsetY = 75 - (minY + maxY) / 2 * scale;
                 
+                // Рисуем ребра на миникарте
+                this.currentGraphData.edges.forEach(edge => {
+                    const from = vertices[edge.from];
+                    const to = vertices[edge.to];
+                    if (!from || !to) return;
+                    
+                    this.minimapCtx.strokeStyle = 'rgba(102, 126, 234, 0.3)';
+                    this.minimapCtx.lineWidth = 0.5;
+                    this.minimapCtx.beginPath();
+                    this.minimapCtx.moveTo(from.x * scale + offsetX, from.y * scale + offsetY);
+                    this.minimapCtx.lineTo(to.x * scale + offsetX, to.y * scale + offsetY);
+                    this.minimapCtx.stroke();
+                });
+                
+                // Рисуем вершины на миникарте
                 vertices.forEach(v => {
                     if (!v) return;
                     this.minimapCtx.fillStyle = '#667eea';
@@ -1002,7 +1002,6 @@
                 this.minimapCtx.lineWidth = 2;
                 this.minimapCtx.strokeRect(viewX, viewY, viewW, viewH);
                 
-                // Добавляем текст-подсказку на миникарте
                 this.minimapCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
                 this.minimapCtx.font = '10px Arial';
                 this.minimapCtx.textAlign = 'center';
@@ -1013,7 +1012,7 @@
                 for (let i = 0; i < this.highlightedPath.length - 1; i++) {
                     if ((this.highlightedPath[i] === from && this.highlightedPath[i + 1] === to) ||
                         (this.graphType === 'undirected' && 
-                         this.highlightedPath[i] === to && this.highlightedPath[i + 1] === from)) {
+                        (this.highlightedPath[i] === to && this.highlightedPath[i + 1] === from))) {
                         return true;
                     }
                 }
@@ -1040,7 +1039,7 @@
                 this.animationId = requestAnimationFrame(() => this.animate());
             }
         }
-        
+
         // Глобальные переменные
         const graphCanvas = new InteractiveGraphCanvas();
         let currentGraphData = null;

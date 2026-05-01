@@ -226,7 +226,6 @@ public:
 };
 
 // Синхронная функция построения графа
-// Синхронная функция построения графа
 Napi::Value BuildGraph(const Napi::CallbackInfo &info)
 {
     Napi::Env env = info.Env();
@@ -254,7 +253,18 @@ Napi::Value BuildGraph(const Napi::CallbackInfo &info)
     GRAF graf;
     graf.buildFromMatrix(matrix);
 
-    auto positions = graf.calculateVertexPositions(450.0, 300.0, 200.0);
+    // Динамический радиус в зависимости от количества вершин
+    double radius = 200.0;
+    if (n > 10)
+        radius = 200.0 + (n - 10) * 25.0; // Увеличиваем радиус на 25 за каждую вершину сверх 10
+    if (n > 20)
+        radius = 200.0 + 10 * 25.0 + (n - 20) * 15.0; // Замедляем рост после 20 вершин
+
+    // Центр холста (можно передавать параметром)
+    double centerX = 450.0;
+    double centerY = 300.0;
+
+    auto positions = graf.calculateVertexPositions(centerX, centerY, radius);
     auto adjList = graf.getAdjacencyList();
 
     Napi::Object result = Napi::Object::New(env);
@@ -273,7 +283,6 @@ Napi::Value BuildGraph(const Napi::CallbackInfo &info)
     Napi::Array edgesArray = Napi::Array::New(env);
     int edgeIndex = 0;
 
-    // Карта для отслеживания обработанных ребер
     std::vector<std::vector<bool>> processed(n, std::vector<bool>(n, false));
 
     for (int i = 0; i < n; i++)
@@ -284,7 +293,6 @@ Napi::Value BuildGraph(const Napi::CallbackInfo &info)
             {
                 Napi::Object edge = Napi::Object::New(env);
 
-                // Проверяем, есть ли обратное ребро с таким же весом
                 bool isBidirectional = (matrix[j][i] != 0 && matrix[i][j] == matrix[j][i]);
 
                 edge.Set("from", i);
@@ -294,13 +302,11 @@ Napi::Value BuildGraph(const Napi::CallbackInfo &info)
 
                 if (isBidirectional)
                 {
-                    // Помечаем оба направления как обработанные
                     processed[i][j] = true;
                     processed[j][i] = true;
                 }
                 else
                 {
-                    // Помечаем только текущее направление
                     processed[i][j] = true;
                 }
 
@@ -310,6 +316,7 @@ Napi::Value BuildGraph(const Napi::CallbackInfo &info)
     }
     result.Set("edges", edgesArray);
     result.Set("numVertices", n);
+    result.Set("radius", radius); // Передаем радиус для информации
 
     return result;
 }
