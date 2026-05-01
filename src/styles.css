@@ -348,6 +348,28 @@ canvas {
     color: #7f8c8d;
 }
 
+.option-category {
+    font-size: 11px;
+    font-weight: 700;
+    color: #667eea;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 10px 0 5px 0;
+    margin-top: 10px;
+    border-top: 1px solid #dee2e6;
+}
+
+.option-category:first-child {
+    margin-top: 0;
+    border-top: none;
+    padding-top: 0;
+}
+
+.popup-menu {
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
 #minimap {
     position: fixed;
     bottom: 20px;

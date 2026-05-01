@@ -26,19 +26,6 @@
             </div>
         </div>
         
-        <div class="control-row">
-            <label>Алгоритмы:</label>
-            <button class="info" onclick="showTraversalMenu()">🔄 Обход графа</button>
-            
-            <label>Путь от:</label>
-            <input type="number" id="pathStart" value="0" min="0">
-            <label>до:</label>
-            <input type="number" id="pathEnd" value="1" min="0">
-            <button class="warning" onclick="findPath()">📍 Кратчайший путь</button>
-            
-            <button onclick="checkConnectivity()">🔗 Проверить связность</button>
-        </div>
-        
         <div id="algorithmResult" class="algorithm-result" style="display: none;"></div>
         <div id="status" style="margin-top: 5px; font-size: 13px; color: #7f8c8d;"></div>
     </div>
@@ -72,45 +59,72 @@
         </div>
     </div>
     
-    <!-- Popup меню для выбора обхода -->
-    <div id="traversalMenu" class="popup-menu" style="display: none;">
-        <h3>Выберите тип обхода</h3>
         
-        <div class="traversal-option selected" data-type="bfs" onclick="selectTraversal('bfs')">
-            <div class="traversal-icon bfs-icon">🔄</div>
-            <div class="traversal-info">
-                <div class="traversal-title">BFS (Поиск в ширину)</div>
-                <div class="traversal-desc">Обходит граф по уровням, используя очередь</div>
-            </div>
-        </div>
-        
-        <div class="traversal-option" data-type="dfs" onclick="selectTraversal('dfs')">
-            <div class="traversal-icon dfs-icon">🔍</div>
-            <div class="traversal-info">
-                <div class="traversal-title">DFS (Поиск в глубину)</div>
-                <div class="traversal-desc">Обходит граф в глубину, используя стек</div>
-            </div>
-        </div>
-        
-        <div class="start-vertex-input">
-            <label for="traversalStartVertex">Начальная вершина:</label>
-            <input type="number" id="traversalStartVertex" value="0" min="0" placeholder="Введите номер вершины">
-            <button onclick="runTraversal()">▶ Запустить обход</button>
-        </div>
-    </div>
-    
     <!-- Popup меню для дополнительных опций -->
+    
     <div id="optionsMenu" class="popup-menu" style="display: none;">
-        <h3>Дополнительные опции</h3>
+        <h3>Алгоритмы и опции</h3>
         
-        <div class="option-item" onclick="showMSTMenu()">
-            <div class="option-icon">🌲</div>
+        <!-- Обход графа -->
+        <div class="option-category">Обход графа</div>
+        
+        <div class="option-item" onclick="showTraversalSubmenu('bfs')">
+            <div class="option-icon">🔄</div>
             <div class="option-info">
-                <div class="option-title">Минимальное остовное дерево</div>
-                <div class="option-desc">Построить MST (Краскал или Прим)</div>
+                <div class="option-title">BFS (Поиск в ширину)</div>
+                <div class="option-desc">Обходит граф по уровням, используя очередь</div>
             </div>
         </div>
-
+        
+        <div class="option-item" onclick="showTraversalSubmenu('dfs')">
+            <div class="option-icon">🔍</div>
+            <div class="option-info">
+                <div class="option-title">DFS (Поиск в глубину)</div>
+                <div class="option-desc">Обходит граф в глубину, используя стек</div>
+            </div>
+        </div>
+        
+        <!-- Кратчайший путь -->
+        <div class="option-category">Поиск пути</div>
+        
+        <div class="option-item" onclick="showShortestPathMenu()">
+            <div class="option-icon">📍</div>
+            <div class="option-info">
+                <div class="option-title">Кратчайший путь (Дейкстра)</div>
+                <div class="option-desc">Находит кратчайший путь между двумя вершинами</div>
+            </div>
+        </div>
+        
+        <div class="option-item" onclick="solveTSPGraph()">
+            <div class="option-icon">🎯</div>
+            <div class="option-info">
+                <div class="option-title">Задача коммивояжера</div>
+                <div class="option-desc">Решает TSP методом ветвей и границ</div>
+            </div>
+        </div>
+        
+        <!-- Остовное дерево -->
+        <div class="option-category">Остовное дерево</div>
+        
+        <div class="option-item" onclick="runMSTAlgorithm('kruskal')">
+            <div class="option-icon">🔗</div>
+            <div class="option-info">
+                <div class="option-title">MST (Алгоритм Краскала)</div>
+                <div class="option-desc">Сортировка ребер и система непересекающихся множеств</div>
+            </div>
+        </div>
+        
+        <div class="option-item" onclick="runMSTAlgorithm('prim')">
+            <div class="option-icon">⭐</div>
+            <div class="option-info">
+                <div class="option-title">MST (Алгоритм Прима)</div>
+                <div class="option-desc">Построение от вершины с минимальным ребром</div>
+            </div>
+        </div>
+        
+        <!-- Эйлеровость -->
+        <div class="option-category">Эйлеровость</div>
+        
         <div class="option-item" onclick="checkEulerianGraph()">
             <div class="option-icon">🔍</div>
             <div class="option-info">
@@ -127,15 +141,49 @@
             </div>
         </div>
         
-        <div class="option-item" onclick="solveTSPGraph()">
-            <div class="option-icon">🎯</div>
+        <!-- Связность -->
+        <div class="option-category">Другое</div>
+        
+        <div class="option-item" onclick="checkConnectivity()">
+            <div class="option-icon">🔗</div>
             <div class="option-info">
-                <div class="option-title">Задача коммивояжера</div>
-                <div class="option-desc">Решает TSP методом ветвей и границ</div>
+                <div class="option-title">Проверить связность</div>
+                <div class="option-desc">Проверяет, является ли граф связным</div>
             </div>
         </div>
     </div>
-    
+
+    <!-- Подменю для обхода графа (BFS/DFS) -->
+    <div id="traversalSubmenu" class="popup-menu" style="display: none;">
+        <h3 id="traversalSubmenuTitle">BFS обход</h3>
+        
+        <div class="start-vertex-input">
+            <label for="traversalStartVertex">Начальная вершина:</label>
+            <input type="number" id="traversalStartVertex" value="0" min="0" placeholder="Введите номер вершины">
+            <button onclick="runTraversal()">▶ Запустить обход</button>
+        </div>
+        
+        <button onclick="closeTraversalSubmenu()" style="width: 100%; margin-top: 10px; background: #95a5a6;">Отмена</button>
+    </div>
+
+    <!-- Подменю для кратчайшего пути -->
+    <div id="shortestPathMenu" class="popup-menu" style="display: none;">
+        <h3>Поиск кратчайшего пути</h3>
+        
+        <div class="start-vertex-input">
+            <label for="spStartVertex">От вершины:</label>
+            <input type="number" id="spStartVertex" value="0" min="0" placeholder="Начальная вершина">
+        </div>
+        
+        <div class="start-vertex-input">
+            <label for="spEndVertex">До вершины:</label>
+            <input type="number" id="spEndVertex" value="1" min="0" placeholder="Конечная вершина">
+        </div>
+        
+        <button onclick="runShortestPath()">▶ Найти путь</button>
+        <button onclick="closeShortestPathMenu()" style="width: 100%; margin-top: 10px; background: #95a5a6;">Отмена</button>
+    </div>
+        
 
     <div id="mstMenu" class="popup-menu" style="display: none;">
         <h3>Выберите алгоритм MST</h3>
