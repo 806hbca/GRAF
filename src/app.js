@@ -1,8 +1,15 @@
 // app.js
-const graphCanvas = new InteractiveGraphCanvas();
+// Глобальные переменные
 let currentGraphData = null;
 let currentMatrix = null;
 let selectedTraversalType = 'bfs';
+
+// Делаем переменные доступными глобально
+window.currentMatrix = null;
+window.currentGraphData = null;
+
+// graphCanvas будет создан после загрузки DOM
+let graphCanvas;
 
 // Функции для работы с меню опций
 function showOptionsMenu() {
@@ -13,7 +20,6 @@ function showOptionsMenu() {
     menu.style.left = (window.innerWidth - rect.width) / 2 + 'px';
     menu.style.top = (window.innerHeight - rect.height) / 2 + 'px';
     
-    // Прокручиваем в начало меню
     menu.scrollTop = 0;
     
     setTimeout(() => {
@@ -86,7 +92,7 @@ async function runTraversal() {
             result = await window.cpp.runDFS(startVertex);
             showAlgorithmResult(`DFS обход (от вершины ${startVertex}): ${result.join(' → ')}`);
         }
-        graphCanvas.highlightVertices(result);
+        if (graphCanvas) graphCanvas.highlightVertices(result);
     } catch (e) {
         showStatus('Ошибка: ' + e.message, true);
     }
@@ -135,29 +141,27 @@ async function runShortestPath() {
     try {
         const path = await window.cpp.findShortestPath(start, end);
         if (path.length > 0) {
-            // Вычисляем сумму весов пути
             let totalWeight = 0;
             for (let i = 0; i < path.length - 1; i++) {
                 const from = path[i];
                 const to = path[i + 1];
-                // Ищем вес ребра в currentMatrix
                 if (currentMatrix && currentMatrix[from] && currentMatrix[from][to] !== undefined) {
                     totalWeight += currentMatrix[from][to];
                 }
             }
             
             showAlgorithmResult(`Кратчайший путь ${start}→${end}: ${path.join(' → ')} | Сумма пути: ${totalWeight.toFixed(2)}`);
-            graphCanvas.highlightPath(path);
+            if (graphCanvas) graphCanvas.highlightPath(path);
         } else {
             showAlgorithmResult('Путь не найден');
-            graphCanvas.clearHighlights();
+            if (graphCanvas) graphCanvas.clearHighlights();
         }
     } catch (e) {
         showStatus('Ошибка: ' + e.message, true);
     }
-}   
+}
 
-// MST алгоритмы (упрощенные)
+// MST алгоритмы
 async function runMSTAlgorithm(type) {
     closeOptionsMenu();
     
@@ -212,12 +216,12 @@ function highlightMSTEdges(mstResult) {
         }
     }
     
-    graphCanvas.highlightPath(path);
+    if (graphCanvas) graphCanvas.highlightPath(path);
 }
 
 // Остальные функции
 function setGraphType(type) {
-    graphCanvas.setGraphType(type);
+    if (graphCanvas) graphCanvas.setGraphType(type);
     if (currentMatrix) {
         buildGraph(currentMatrix);
     }
@@ -231,10 +235,6 @@ function showManualInput() {
 function closeModal() {
     document.getElementById('inputModal').classList.remove('active');
 }
-
-document.getElementById('inputModal').addEventListener('click', function(e) {
-    if (e.target === this) closeModal();
-});
 
 async function loadFromFile() {
     try {
@@ -289,7 +289,7 @@ async function buildGraph(matrix) {
         showStatus('Построение графа...');
         
         let processedMatrix = matrix;
-        if (graphCanvas.graphType === 'undirected') {
+        if (graphCanvas && graphCanvas.graphType === 'undirected') {
             processedMatrix = matrix.map((row, i) => 
                 row.map((val, j) => val !== 0 || matrix[j][i] !== 0 ? Math.max(val, matrix[j][i]) : 0)
             );
@@ -297,8 +297,13 @@ async function buildGraph(matrix) {
         
         const graphData = await window.cpp.buildGraph(processedMatrix);
         currentGraphData = graphData;
-        graphCanvas.setGraphData(graphData, matrix);
-        showStatus(`Граф: ${graphData.numVertices} вершин, ${graphData.edges.length} рёбер (${graphCanvas.graphType === 'directed' ? 'ориентированный' : 'неориентированный'})`);
+        currentMatrix = matrix;
+        
+        window.currentMatrix = matrix;
+        window.currentGraphData = graphData;
+        
+        if (graphCanvas) graphCanvas.setGraphData(graphData, matrix);
+        showStatus(`Граф: ${graphData.numVertices} вершин, ${graphData.edges.length} рёбер`);
     } catch (e) {
         showStatus('Ошибка: ' + e.message, true);
     }
@@ -320,7 +325,9 @@ async function checkConnectivity() {
 function clearGraph() {
     currentGraphData = null;
     currentMatrix = null;
-    graphCanvas.setGraphData(null, null);
+    window.currentMatrix = null;
+    window.currentGraphData = null;
+    if (graphCanvas) graphCanvas.setGraphData(null, null);
     document.getElementById('matrixInput').value = '';
     document.getElementById('algorithmResult').style.display = 'none';
     showStatus('Граф очищен');
@@ -334,8 +341,10 @@ function showAlgorithmResult(message) {
 
 function showStatus(message, isError = false) {
     const statusEl = document.getElementById('status');
-    statusEl.textContent = message;
-    statusEl.style.color = isError ? '#e74c3c' : '#7f8c8d';
+    if (statusEl) {
+        statusEl.textContent = message;
+        statusEl.style.color = isError ? '#e74c3c' : '#7f8c8d';
+    }
 }
 
 async function checkEulerianGraph() {
@@ -345,7 +354,7 @@ async function checkEulerianGraph() {
     
     try {
         const isEulerian = await window.cpp.checkEulerian();
-        showAlgorithmResult(isEulerian ? '✅ Граф эйлеров (все степени вершин четные)' : '❌ Граф не эйлеров');
+        showAlgorithmResult(isEulerian ? '✅ Граф эйлеров' : '❌ Граф не эйлеров');
     } catch (e) {
         showStatus('Ошибка: ' + e.message, true);
     }
@@ -360,9 +369,9 @@ async function findEulerianCycleGraph() {
         const cycle = await window.cpp.findEulerianCycle();
         if (cycle.length > 0) {
             showAlgorithmResult(`Эйлеров цикл: ${cycle.join(' → ')}`);
-            graphCanvas.highlightPath(cycle);
+            if (graphCanvas) graphCanvas.highlightPath(cycle);
         } else {
-            showAlgorithmResult('Эйлеров цикл не найден (граф не эйлеров)');
+            showAlgorithmResult('Эйлеров цикл не найден');
         }
     } catch (e) {
         showStatus('Ошибка: ' + e.message, true);
@@ -380,7 +389,7 @@ async function solveTSPGraph() {
         
         if (result.path.length > 0) {
             showAlgorithmResult(`Оптимальный маршрут: ${result.path.join(' → ')} | Стоимость: ${result.cost.toFixed(2)}`);
-            graphCanvas.highlightPath(result.path);
+            if (graphCanvas) graphCanvas.highlightPath(result.path);
         } else {
             showAlgorithmResult('Не удалось найти решение TSP');
         }
@@ -390,7 +399,6 @@ async function solveTSPGraph() {
 }
 
 // Функции редактирования графа
-
 function showEditMenu() {
     const menu = document.getElementById('editMenu');
     menu.style.display = 'block';
@@ -412,11 +420,9 @@ function closeEditMenu(e) {
     }
 }
 
-// Закрытие подменю
 function closeSubmenu(menuId) {
     const menu = document.getElementById(menuId);
-    menu.style.display = 'none';
-    document.removeEventListener('click', closeSubmenuHandler);
+    if (menu) menu.style.display = 'none';
 }
 
 function showSubmenu(menuId) {
@@ -454,33 +460,25 @@ function closeSubmenuHandler(e) {
     }
 }
 
-// Показать меню добавления вершины
 function showAddVertexMenu() {
     showSubmenu('addVertexMenu');
-    document.getElementById('newVertexX').focus();
 }
 
-// Показать меню удаления вершины
 function showDeleteVertexMenu() {
     showSubmenu('deleteVertexMenu');
     document.getElementById('deleteVertexIndex').focus();
 }
 
-// Показать меню добавления ребра
 function showAddEdgeMenu() {
     showSubmenu('addEdgeMenu');
     document.getElementById('edgeFromVertex').focus();
 }
 
-// Показать меню удаления ребра
 function showDeleteEdgeMenu() {
     showSubmenu('deleteEdgeMenu');
     document.getElementById('deleteEdgeFrom').focus();
 }
 
-
-
-// Удалить вершину
 function deleteVertex() {
     if (!currentMatrix) {
         showStatus('Сначала постройте граф', true);
@@ -501,7 +499,6 @@ function deleteVertex() {
         return;
     }
     
-    // Удаляем строку и столбец
     const newMatrix = [];
     for (let i = 0; i < n; i++) {
         if (i === vertexIndex) continue;
@@ -520,10 +517,6 @@ function deleteVertex() {
     showStatus(`Вершина ${vertexIndex} удалена. Осталось вершин: ${n - 1}`);
 }
 
-
-
-
-// Удалить ребро
 function deleteEdge() {
     if (!currentMatrix) {
         showStatus('Сначала постройте граф', true);
@@ -545,24 +538,19 @@ function deleteEdge() {
         return;
     }
     
-    // Проверяем, было ли ребро двунаправленным
     const wasBidirectional = (currentMatrix[to][from] !== 0);
     
-    // Удаляем ребро в указанном направлении
     currentMatrix[from][to] = 0;
     
-    // Для неориентированного графа удаляем обратное ребро
-    if (graphCanvas.graphType === 'undirected') {
+    if (graphCanvas && graphCanvas.graphType === 'undirected') {
         currentMatrix[to][from] = 0;
     }
-    // Для ориентированного графа - сохраняем обратное ребро (если было)
-    // Ничего не делаем с currentMatrix[to][from]
     
     buildGraph(currentMatrix);
     
     closeSubmenu('deleteEdgeMenu');
     
-    if (graphCanvas.graphType === 'undirected') {
+    if (graphCanvas && graphCanvas.graphType === 'undirected') {
         showStatus(`Ребро ${from}↔${to} удалено полностью`);
     } else if (wasBidirectional) {
         showStatus(`Удалено ребро ${from}→${to}. Осталось ребро ${to}→${from} (вес: ${currentMatrix[to][from]})`);
@@ -571,7 +559,6 @@ function deleteEdge() {
     }
 }
 
-// Добавить вершину (без координат)
 function addVertex() {
     if (!currentMatrix) {
         showStatus('Сначала постройте граф', true);
@@ -627,7 +614,7 @@ function addEdge() {
     
     currentMatrix[from][to] = weight;
     
-    if (bidirectional || graphCanvas.graphType === 'undirected') {
+    if (bidirectional || (graphCanvas && graphCanvas.graphType === 'undirected')) {
         currentMatrix[to][from] = weight;
     }
     
@@ -642,53 +629,37 @@ function addEdge() {
     }
 }
 
-// Функция для перестроения графа (вызывается из graph-canvas)
 function rebuildGraph(matrix) {
     currentMatrix = matrix;
     buildGraph(matrix);
 }
 
-// Обновите closeSubmenu для универсальности
-function closeSubmenu(menuId) {
-    const menu = document.getElementById(menuId);
-    if (menu) {
-        menu.style.display = 'none';
-    }
-}
-
-// Экспортируйте необходимые функции в глобальную область
+// Экспорт в глобальную область
 window.rebuildGraph = rebuildGraph;
+window.showStatus = showStatus;
 
-// Инициализация обработчиков для popup меню
+// Инициализация после загрузки DOM
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('optionsMenu').addEventListener('click', (e) => {
-        e.stopPropagation();
+    // Создаем graphCanvas
+    graphCanvas = new InteractiveGraphCanvas();
+    
+    // Обработчик закрытия модального окна
+    document.getElementById('inputModal').addEventListener('click', function(e) {
+        if (e.target === this) closeModal();
     });
     
-    document.getElementById('editMenu').addEventListener('click', (e) => {
-        e.stopPropagation();
-    });
+    // Обработчики для popup меню
+    document.getElementById('optionsMenu').addEventListener('click', (e) => e.stopPropagation());
+    document.getElementById('editMenu').addEventListener('click', (e) => e.stopPropagation());
+    document.getElementById('traversalSubmenu').addEventListener('click', (e) => e.stopPropagation());
+    document.getElementById('shortestPathMenu').addEventListener('click', (e) => e.stopPropagation());
     
-    document.getElementById('traversalSubmenu').addEventListener('click', (e) => {
-        e.stopPropagation();
-    });
-    
-    document.getElementById('shortestPathMenu').addEventListener('click', (e) => {
-        e.stopPropagation();
-    });
-    
-    // Подменю редактирования
     ['addVertexMenu', 'deleteVertexMenu', 'addEdgeMenu', 'deleteEdgeMenu'].forEach(menuId => {
         const menu = document.getElementById(menuId);
         if (menu) {
-            menu.addEventListener('click', (e) => {
-                e.stopPropagation();
-            });
+            menu.addEventListener('click', (e) => e.stopPropagation());
         }
     });
+    
+    showStatus('🖱️ Перетаскивайте вершины | 🖱️ Панорамируйте холст | 🔍 Колесико для зума | 2x клик на миникарте - центр');
 });
-
-window.showStatus = showStatus;
-
-
-showStatus('🖱️ Перетаскивайте вершины | 🖱️ Панорамируйте холст | 🔍 Колесико для зума | 2x клик на миникарте - центр');
