@@ -50,6 +50,10 @@ class InteractiveGraphCanvas {
         this.highlightedVertices = [];
         this.highlightedPath = [];
         this.highlightedEdges = [];
+
+        this.shiftPressed = false;
+        this.shiftFirstVertex = null;
+        this.selectedVertexIndex = null;
         
         this.init();
     }
@@ -75,13 +79,16 @@ class InteractiveGraphCanvas {
         window.addEventListener('mousemove', (e) => this.onMouseMove(e));
         window.addEventListener('mouseup', (e) => this.onMouseUp(e));
         this.canvas.addEventListener('wheel', (e) => this.onWheel(e));
-        this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+        this.canvas.addEventListener('contextmenu', (e) => this.onContextMenu(e));
+        
+        // Обработка клавиш
+        window.addEventListener('keydown', (e) => this.onKeyDown(e));
+        window.addEventListener('keyup', (e) => this.onKeyUp(e));
         
         this.minimapContainer.addEventListener('dblclick', (e) => {
             this.centerView();
         });
     }
-    
     screenToWorld(screenX, screenY) {
         const rect = this.canvas.getBoundingClientRect();
         return {
@@ -211,7 +218,7 @@ class InteractiveGraphCanvas {
         this.mouse.isDraggingNode = false;
         this.mouse.dragNodeIndex = -1;
         this.container.classList.remove('grabbing');
-        this.container.style.cursor = 'grab';
+        this.container.style.cursor = 'grab'; // Исправлено: не нужно переопределять кастомный курсор
     }
     
     onWheel(e) {
@@ -251,6 +258,116 @@ class InteractiveGraphCanvas {
         this.graphType = type;
     }
     
+    onContextMenu(e) {
+        e.preventDefault();
+        
+        if (!this.currentGraphData) return;
+        
+        const worldPos = this.screenToWorld(e.clientX, e.clientY);
+        const vertexIndex = this.findVertexAt(worldPos.x, worldPos.y);
+        
+        if (vertexIndex !== -1) {
+            if (this.shiftPressed) {
+                // Shift + правый клик: добавляем ребро
+                if (this.shiftFirstVertex === null) {
+                    this.shiftFirstVertex = vertexIndex;
+                    showStatus(`Выбрана первая вершина: ${vertexIndex}. Выберите вторую вершину.`);
+                } else {
+                    const from = this.shiftFirstVertex;
+                    const to = vertexIndex;
+                    
+                    if (from !== to) {
+                        // Добавляем двустороннее ребро
+                        this.addBidirectionalEdge(from, to);
+                    }
+                    
+                    this.shiftFirstVertex = null;
+                    showStatus(`Добавлено двустороннее ребро ${from}↔${to}`);
+                }
+            } else {
+                // Правый клик: выделяем вершину для удаления
+                this.selectedVertexIndex = vertexIndex;
+                showStatus(`Вершина ${vertexIndex} выделена. Нажмите Delete для удаления.`);
+            }
+        }
+    }
+
+    onKeyDown(e) {
+        if (e.key === 'Shift') {
+            this.shiftPressed = true;
+        }
+        
+        if (e.key === 'Delete' || e.key === 'Del') {
+            if (this.selectedVertexIndex !== null) {
+                this.deleteSelectedVertex();
+            }
+        }
+        
+        if (e.key === 'Escape') {
+            this.shiftFirstVertex = null;
+            this.selectedVertexIndex = null;
+            showStatus('Выделение сброшено');
+        }
+    }
+
+    onKeyUp(e) {
+        if (e.key === 'Shift') {
+            this.shiftPressed = false;
+            if (this.shiftFirstVertex !== null) {
+                showStatus('Режим добавления ребра отменен');
+                this.shiftFirstVertex = null;
+            }
+        }
+    }
+
+    addBidirectionalEdge(from, to) {
+        if (!this.currentMatrix) return;
+        
+        const n = this.currentMatrix.length;
+        const weight = 1; // Вес по умолчанию
+        
+        this.currentMatrix[from][to] = weight;
+        this.currentMatrix[to][from] = weight;
+        
+        // Вызываем перестроение графа
+        if (typeof rebuildGraph === 'function') {
+            rebuildGraph(this.currentMatrix);
+        }
+    }
+
+    deleteSelectedVertex() {
+        if (this.selectedVertexIndex === null || !this.currentMatrix) return;
+        
+        const vertexIndex = this.selectedVertexIndex;
+        const n = this.currentMatrix.length;
+        
+        if (n <= 1) {
+            showStatus('Нельзя удалить последнюю вершину', true);
+            return;
+        }
+        
+        // Удаляем вершину из матрицы
+        const newMatrix = [];
+        for (let i = 0; i < n; i++) {
+            if (i === vertexIndex) continue;
+            const newRow = [];
+            for (let j = 0; j < n; j++) {
+                if (j === vertexIndex) continue;
+                newRow.push(this.currentMatrix[i][j]);
+            }
+            newMatrix.push(newRow);
+        }
+        
+        this.currentMatrix = newMatrix;
+        this.selectedVertexIndex = null;
+        
+        if (typeof rebuildGraph === 'function') {
+            rebuildGraph(this.currentMatrix);
+        }
+        
+        showStatus(`Вершина ${vertexIndex} удалена`);
+    }
+
     draw() {
         this.camera.x += (this.targetCamera.x - this.camera.x) * 0.1;
         this.camera.y += (this.targetCamera.y - this.camera.y) * 0.1;

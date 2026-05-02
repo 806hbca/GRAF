@@ -615,7 +615,99 @@ function deleteEdge() {
     
     closeSubmenu('deleteEdgeMenu');
     showStatus(`Ребро ${from}→${to} удалено`);
+
 }
+
+// Добавить вершину (без координат)
+function addVertex() {
+    if (!currentMatrix) {
+        showStatus('Сначала постройте граф', true);
+        closeSubmenu('addVertexMenu');
+        return;
+    }
+    
+    const n = currentMatrix.length;
+    const newMatrix = [];
+    
+    for (let i = 0; i < n; i++) {
+        const newRow = [...currentMatrix[i], 0];
+        newMatrix.push(newRow);
+    }
+    
+    const newRow = new Array(n + 1).fill(0);
+    newMatrix.push(newRow);
+    
+    currentMatrix = newMatrix;
+    buildGraph(currentMatrix);
+    
+    closeSubmenu('addVertexMenu');
+    showStatus(`Вершина добавлена. Всего вершин: ${n + 1}`);
+}
+
+// Добавить ребро (с учетом чекбокса)
+function addEdge() {
+    if (!currentMatrix) {
+        showStatus('Сначала постройте граф', true);
+        closeSubmenu('addEdgeMenu');
+        return;
+    }
+    
+    const from = parseInt(document.getElementById('edgeFromVertex').value);
+    const to = parseInt(document.getElementById('edgeToVertex').value);
+    const weight = parseFloat(document.getElementById('edgeWeight').value) || 1;
+    const bidirectional = document.getElementById('edgeBidirectional').checked;
+    const n = currentMatrix.length;
+    
+    if (isNaN(from) || from < 0 || from >= n || isNaN(to) || to < 0 || to >= n) {
+        showStatus('Некорректные индексы вершин', true);
+        return;
+    }
+    
+    if (from === to) {
+        showStatus('Нельзя добавить петлю', true);
+        return;
+    }
+    
+    if (currentMatrix[from][to] !== 0) {
+        showStatus('Ребро уже существует', true);
+        return;
+    }
+    
+    // Добавляем ребро
+    currentMatrix[from][to] = weight;
+    
+    // Если выбрано "в обе стороны" или граф неориентированный
+    if (bidirectional || graphCanvas.graphType === 'undirected') {
+        currentMatrix[to][from] = weight;
+    }
+    
+    buildGraph(currentMatrix);
+    
+    closeSubmenu('addEdgeMenu');
+    
+    if (bidirectional) {
+        showStatus(`Двустороннее ребро ${from}↔${to} (вес: ${weight}) добавлено`);
+    } else {
+        showStatus(`Ребро ${from}→${to} (вес: ${weight}) добавлено`);
+    }
+}
+
+// Функция для перестроения графа (вызывается из graph-canvas)
+function rebuildGraph(matrix) {
+    currentMatrix = matrix;
+    buildGraph(matrix);
+}
+
+// Обновите closeSubmenu для универсальности
+function closeSubmenu(menuId) {
+    const menu = document.getElementById(menuId);
+    if (menu) {
+        menu.style.display = 'none';
+    }
+}
+
+// Экспортируйте необходимые функции в глобальную область
+window.rebuildGraph = rebuildGraph;
 
 // Инициализация обработчиков для popup меню
 document.addEventListener('DOMContentLoaded', () => {
@@ -646,7 +738,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-
+window.showStatus = showStatus;
 
 
 showStatus('🖱️ Перетаскивайте вершины | 🖱️ Панорамируйте холст | 🔍 Колесико для зума | 2x клик на миникарте - центр');
