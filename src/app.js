@@ -119,7 +119,6 @@ function closeShortestPathMenu(e) {
 async function runShortestPath() {
     const menu = document.getElementById('shortestPathMenu');
     menu.style.display = 'none';
-    document.removeEventListener('click', closeShortestPathMenu);
     
     if (!currentGraphData) return showStatus('Сначала постройте граф', true);
     const start = parseInt(document.getElementById('spStartVertex').value);
@@ -136,7 +135,18 @@ async function runShortestPath() {
     try {
         const path = await window.cpp.findShortestPath(start, end);
         if (path.length > 0) {
-            showAlgorithmResult(`Кратчайший путь ${start}→${end}: ${path.join(' → ')}`);
+            // Вычисляем сумму весов пути
+            let totalWeight = 0;
+            for (let i = 0; i < path.length - 1; i++) {
+                const from = path[i];
+                const to = path[i + 1];
+                // Ищем вес ребра в currentMatrix
+                if (currentMatrix && currentMatrix[from] && currentMatrix[from][to] !== undefined) {
+                    totalWeight += currentMatrix[from][to];
+                }
+            }
+            
+            showAlgorithmResult(`Кратчайший путь ${start}→${end}: ${path.join(' → ')} | Сумма пути: ${totalWeight.toFixed(2)}`);
             graphCanvas.highlightPath(path);
         } else {
             showAlgorithmResult('Путь не найден');
@@ -145,7 +155,7 @@ async function runShortestPath() {
     } catch (e) {
         showStatus('Ошибка: ' + e.message, true);
     }
-}
+}   
 
 // MST алгоритмы (упрощенные)
 async function runMSTAlgorithm(type) {
@@ -468,36 +478,7 @@ function showDeleteEdgeMenu() {
     document.getElementById('deleteEdgeFrom').focus();
 }
 
-// Добавить вершину
-function addVertex() {
-    if (!currentMatrix) {
-        showStatus('Сначала постройте граф', true);
-        closeSubmenu('addVertexMenu');
-        return;
-    }
-    
-    const x = parseFloat(document.getElementById('newVertexX').value) || 0;
-    const y = parseFloat(document.getElementById('newVertexY').value) || 0;
-    
-    // Добавляем новую строку и столбец в матрицу
-    const n = currentMatrix.length;
-    const newMatrix = [];
-    
-    for (let i = 0; i < n; i++) {
-        const newRow = [...currentMatrix[i], 0];
-        newMatrix.push(newRow);
-    }
-    
-    // Добавляем новую строку (n+1 элементов)
-    const newRow = new Array(n + 1).fill(0);
-    newMatrix.push(newRow);
-    
-    currentMatrix = newMatrix;
-    buildGraph(currentMatrix);
-    
-    closeSubmenu('addVertexMenu');
-    showStatus(`Вершина добавлена. Всего вершин: ${n + 1}`);
-}
+
 
 // Удалить вершину
 function deleteVertex() {
@@ -539,47 +520,8 @@ function deleteVertex() {
     showStatus(`Вершина ${vertexIndex} удалена. Осталось вершин: ${n - 1}`);
 }
 
-// Добавить ребро
-function addEdge() {
-    if (!currentMatrix) {
-        showStatus('Сначала постройте граф', true);
-        closeSubmenu('addEdgeMenu');
-        return;
-    }
-    
-    const from = parseInt(document.getElementById('edgeFromVertex').value);
-    const to = parseInt(document.getElementById('edgeToVertex').value);
-    const weight = parseFloat(document.getElementById('edgeWeight').value) || 1;
-    const n = currentMatrix.length;
-    
-    if (isNaN(from) || from < 0 || from >= n || isNaN(to) || to < 0 || to >= n) {
-        showStatus('Некорректные индексы вершин', true);
-        return;
-    }
-    
-    if (from === to) {
-        showStatus('Нельзя добавить петлю', true);
-        return;
-    }
-    
-    if (currentMatrix[from][to] !== 0) {
-        showStatus('Ребро уже существует', true);
-        return;
-    }
-    
-    // Добавляем ребро
-    currentMatrix[from][to] = weight;
-    
-    // Для неориентированного графа добавляем обратное ребро
-    if (graphCanvas.graphType === 'undirected') {
-        currentMatrix[to][from] = weight;
-    }
-    
-    buildGraph(currentMatrix);
-    
-    closeSubmenu('addEdgeMenu');
-    showStatus(`Ребро ${from}→${to} (вес: ${weight}) добавлено`);
-}
+
+
 
 // Удалить ребро
 function deleteEdge() {
@@ -603,19 +545,30 @@ function deleteEdge() {
         return;
     }
     
-    // Удаляем ребро
+    // Проверяем, было ли ребро двунаправленным
+    const wasBidirectional = (currentMatrix[to][from] !== 0);
+    
+    // Удаляем ребро в указанном направлении
     currentMatrix[from][to] = 0;
     
     // Для неориентированного графа удаляем обратное ребро
     if (graphCanvas.graphType === 'undirected') {
         currentMatrix[to][from] = 0;
     }
+    // Для ориентированного графа - сохраняем обратное ребро (если было)
+    // Ничего не делаем с currentMatrix[to][from]
     
     buildGraph(currentMatrix);
     
     closeSubmenu('deleteEdgeMenu');
-    showStatus(`Ребро ${from}→${to} удалено`);
-
+    
+    if (graphCanvas.graphType === 'undirected') {
+        showStatus(`Ребро ${from}↔${to} удалено полностью`);
+    } else if (wasBidirectional) {
+        showStatus(`Удалено ребро ${from}→${to}. Осталось ребро ${to}→${from} (вес: ${currentMatrix[to][from]})`);
+    } else {
+        showStatus(`Ребро ${from}→${to} удалено`);
+    }
 }
 
 // Добавить вершину (без координат)
@@ -644,7 +597,6 @@ function addVertex() {
     showStatus(`Вершина добавлена. Всего вершин: ${n + 1}`);
 }
 
-// Добавить ребро (с учетом чекбокса)
 function addEdge() {
     if (!currentMatrix) {
         showStatus('Сначала постройте граф', true);
@@ -673,10 +625,8 @@ function addEdge() {
         return;
     }
     
-    // Добавляем ребро
     currentMatrix[from][to] = weight;
     
-    // Если выбрано "в обе стороны" или граф неориентированный
     if (bidirectional || graphCanvas.graphType === 'undirected') {
         currentMatrix[to][from] = weight;
     }

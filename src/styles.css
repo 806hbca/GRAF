@@ -412,19 +412,7 @@ canvas {
     cursor: pointer;
 }
 
-/* Кастомный курсор для canvas */
-#canvas-container {
-    cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><path d='M5 3 L5 25 L12 20 L18 28 L21 26 L15 18 L22 16 Z' fill='black' stroke='white' stroke-width='1.5'/></svg>") 5 3, grab;
-}
 
-#canvas-container.grabbing {
-    cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><path d='M5 3 L5 25 L12 20 L18 28 L21 26 L15 18 L22 16 Z' fill='black' stroke='white' stroke-width='1.5'/></svg>") 5 3, grabbing;
-}
-
-/* Для перемещения вершины */
-#canvas-container.move-cursor {
-    cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><path d='M5 3 L5 25 L12 20 L18 28 L21 26 L15 18 L22 16 Z' fill='black' stroke='white' stroke-width='1.5'/></svg>") 5 3, move;
-}
 
 #minimap {
     position: fixed;
