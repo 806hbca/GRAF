@@ -423,23 +423,7 @@ class InteractiveGraphCanvas {
                 weight = matrix[fromVertex][toVertex];
             }
             
-            // Вычисляем середину и угол
-            const midX = (from.x + to.x) / 2;
-            const midY = (from.y + to.y) / 2;
-            const angle = Math.atan2(to.y - from.y, to.x - from.x);
-            const length = Math.sqrt((to.x - from.x) ** 2 + (to.y - from.y) ** 2);
-            
-            // Закрашиваем белым старую линию и вес
-            this.ctx.save();
-            this.ctx.translate(midX, midY);
-            this.ctx.rotate(angle);
-            this.ctx.fillStyle = '#ffffff';
-            this.ctx.shadowColor = 'transparent';
-            this.ctx.shadowBlur = 0;
-            this.ctx.fillRect(-length / 2, -25, length, 50);
-            this.ctx.restore();
-            
-            // Рисуем красную линию
+            // Рисуем красную линию пути (без белого фона)
             this.ctx.strokeStyle = '#e74c3c'; 
             this.ctx.lineWidth = 4;
             this.ctx.shadowColor = 'rgba(231, 76, 60, 0.5)'; 
@@ -451,20 +435,22 @@ class InteractiveGraphCanvas {
             this.ctx.shadowColor = 'transparent'; 
             this.ctx.shadowBlur = 0;
             
-            // Рисуем красные стрелки ВСЕГДА
+            // Рисуем красные стрелки
             this.drawArrow(from, to, '#e74c3c', 4);
             
-            // Для неориентированного графа или двунаправленных ребер
+            // Для неориентированного графа рисуем стрелки в обе стороны
             if (this.graphType === 'undirected') {
                 this.drawArrow(to, from, '#e74c3c', 4);
             }
             
-            // Отображаем вес красным
+            // Отображаем вес красным цветом
             if (weight !== 0) {
+                const midX = (from.x + to.x) / 2;
+                const midY = (from.y + to.y) / 2;
                 const weightText = weight.toFixed(1);
                 const textWidth = this.ctx.measureText(weightText).width;
                 
-                // Белый фон
+                // Белый фон для текста
                 this.ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
                 this.ctx.fillRect(midX - textWidth / 2 - 6, midY - 11, textWidth + 12, 22);
                 
