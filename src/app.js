@@ -29,7 +29,12 @@ function showOptionsMenu() {
 
 function closeOptionsMenu(e) {
     const menu = document.getElementById('optionsMenu');
-    if (e && !menu.contains(e.target)) {
+    if (!e) {
+        menu.style.display = 'none';
+        document.removeEventListener('click', closeOptionsMenu);
+        return;
+    }
+    if (!menu.contains(e.target)) {
         menu.style.display = 'none';
         document.removeEventListener('click', closeOptionsMenu);
     }
@@ -559,6 +564,176 @@ function deleteEdge() {
     }
 }
 
+let rightLabels = [];
+/** Режим венгерского алгоритма: false = минимизация суммы, true = максимизация */
+let hungarianMaximize = false;
+
+function solveHungarian() {
+    closeOptionsMenu();
+    
+    if (!currentGraphData) return showStatus('Сначала постройте граф', true);
+    
+    showHungarianModeModal();
+}
+
+function showHungarianModeModal() {
+    const modal = document.getElementById('hungarianModeModal');
+    modal.classList.add('active');
+}
+
+function closeHungarianModeModal() {
+    const modal = document.getElementById('hungarianModeModal');
+    modal.classList.remove('active');
+}
+
+function chooseHungarianMode(maximize) {
+    hungarianMaximize = !!maximize;
+    closeHungarianModeModal();
+    const summary = document.getElementById('hungarianModeSummary');
+    if (summary) {
+        summary.textContent = hungarianMaximize
+            ? 'Выбрано: максимизация суммы (матрица эффективности).'
+            : 'Выбрано: минимизация суммы (матрица затрат).';
+        summary.style.color = hungarianMaximize ? '#27ae60' : '#2980b9';
+    }
+    showLabelsModal();
+}
+
+function showLabelsModal() {
+    const modal = document.getElementById('labelsModal');
+    modal.classList.add('active');
+    document.getElementById('leftLabels').focus();
+}
+
+function closeLabelsModal() {
+    const modal = document.getElementById('labelsModal');
+    modal.classList.remove('active');
+}
+
+async function submitLabels() {
+    closeLabelsModal();
+    
+    if (!currentGraphData) return showStatus('Сначала постройте граф', true);
+    
+    const leftInput = document.getElementById('leftLabels').value.trim();
+    const rightInput = document.getElementById('rightLabels').value.trim();
+    
+    leftLabels = leftInput ? leftInput.split(/[,\n]+/).map(s => s.trim()).filter(s => s) : [];
+    rightLabels = rightInput ? rightInput.split(/[,\n]+/).map(s => s.trim()).filter(s => s) : [];
+    
+    try {
+        showStatus('Решение задачи о назначениях...');
+        const result = await window.cpp.solveHungarian(currentMatrix, hungarianMaximize);
+        
+        // ОТЛАДКА: выводим матрицу и назначения
+        console.log('Матрица стоимостей:');
+        for (let i = 0; i < currentMatrix.length; i++) {
+            console.log(`Работник ${i}:`, currentMatrix[i].join('\t'));
+        }
+        
+        console.log('Назначения (assignment):', result.assignment);
+        console.log('Стоимость:', result.cost);
+        
+        // Проверяем каждое назначение
+        let calculatedCost = 0;
+        for (let i = 0; i < result.assignment.length; i++) {
+            const j = result.assignment[i];
+            console.log(`Работник ${i} -> Задача ${j}, стоимость: ${currentMatrix[i][j]}`);
+            calculatedCost += currentMatrix[i][j];
+        }
+        console.log('Рассчитанная стоимость:', calculatedCost);
+        
+        if (result.assignment && result.assignment.length > 0) {
+            let assignmentStr = '';
+            for (let i = 0; i < result.assignment.length; i++) {
+                const j = result.assignment[i];
+                const leftName = leftLabels[i] || `Работник ${i}`;
+                const rightName = rightLabels[j] || `Задача ${j}`;
+                assignmentStr += `${leftName}→${rightName}(${currentMatrix[i][j]})`;
+                if (i < result.assignment.length - 1) assignmentStr += ', ';
+            }
+            
+            const modeLabel = hungarianMaximize ? 'Макс. сумма' : 'Мин. сумма';
+            showAlgorithmResult(`Назначения: ${assignmentStr} | ${modeLabel}: ${result.cost.toFixed(2)}`);
+            rebuildGraphForAssignment(result);
+        }
+    } catch (e) {
+        showStatus('Ошибка: ' + e.message, true);
+    }
+}
+
+function rebuildGraphForAssignment(assignmentResult) {
+    if (!currentMatrix) return;
+    
+    const n = assignmentResult.numVertices;
+    console.log('rebuildGraphForAssignment - n:', n);
+    console.log('assignment:', assignmentResult.assignment);
+    if (graphCanvas) {
+        graphCanvas.setColumnTitles(
+            leftLabels.length > 0 ? 'Работники' : '',
+            rightLabels.length > 0 ? 'Задачи' : ''
+        );
+    }
+    
+    const positions = [];
+    const verticalSpacing = 120;
+    const leftX = -200;
+    const rightX = 200;
+    const startY = -(n - 1) * verticalSpacing / 2;
+    
+    // Левая колонка
+    for (let i = 0; i < n; i++) {
+        positions.push({ 
+            x: leftX, 
+            y: startY + i * verticalSpacing,
+            label: leftLabels[i] || null,
+            side: 'left'
+        });
+    }
+    
+    // Правая колонка
+    for (let i = 0; i < n; i++) {
+        positions.push({ 
+            x: rightX, 
+            y: startY + i * verticalSpacing,
+            label: rightLabels[i] || null,
+            side: 'right'
+        });
+    }
+    
+    // Ребра только для назначенных пар
+    const newEdges = [];
+    for (let i = 0; i < assignmentResult.assignment.length; i++) {
+        const j = assignmentResult.assignment[i];
+        newEdges.push({
+            from: i,
+            to: n + j,
+            weight: currentMatrix[i][j],
+            isBidirectional: true
+        });
+    }
+    
+    const graphData = {
+        vertices: positions,
+        edges: newEdges,
+        numVertices: n * 2
+    };
+    
+    currentGraphData = graphData;
+    if (graphCanvas) {
+        graphCanvas.setGraphData(graphData, currentMatrix);
+        
+        // НЕ ИСПОЛЬЗУЕМ highlightPath!
+        // Вместо этого добавляем специальный режим для паросочетаний
+        graphCanvas.showMatching(newEdges);
+    }
+
+    for (let i = 0; i < assignmentResult.assignment.length; i++) {
+        const j = assignmentResult.assignment[i];
+        console.log(`Создаю ребро: ${i} -> ${n + j}, вес: ${currentMatrix[i][j]}`);
+    }
+}
+
 function addVertex() {
     if (!currentMatrix) {
         showStatus('Сначала постройте граф', true);
@@ -583,6 +758,8 @@ function addVertex() {
     closeSubmenu('addVertexMenu');
     showStatus(`Вершина добавлена. Всего вершин: ${n + 1}`);
 }
+
+
 
 function addEdge() {
     if (!currentMatrix) {
@@ -653,6 +830,12 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('editMenu').addEventListener('click', (e) => e.stopPropagation());
     document.getElementById('traversalSubmenu').addEventListener('click', (e) => e.stopPropagation());
     document.getElementById('shortestPathMenu').addEventListener('click', (e) => e.stopPropagation());
+    document.getElementById('labelsModal').addEventListener('click', function(e) {
+        if (e.target === this) closeLabelsModal();
+    });
+    document.getElementById('hungarianModeModal').addEventListener('click', function(e) {
+        if (e.target === this) closeHungarianModeModal();
+    });
     
     ['addVertexMenu', 'deleteVertexMenu', 'addEdgeMenu', 'deleteEdgeMenu'].forEach(menuId => {
         const menu = document.getElementById(menuId);

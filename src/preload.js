@@ -11,7 +11,8 @@ contextBridge.exposeInMainWorld('cpp', {
     findEulerianCycle: () => ipcRenderer.invoke('find-eulerian-cycle'),
     solveTSP: () => ipcRenderer.invoke('solve-tsp'),
     kruskalMST: () => ipcRenderer.invoke('kruskal-mst'),
-    primMST: () => ipcRenderer.invoke('prim-mst')
+    primMST: () => ipcRenderer.invoke('prim-mst'),
+    solveHungarian: (matrix, maximize) => ipcRenderer.invoke('solve-hungarian', matrix, !!maximize)
 })
 
 contextBridge.exposeInMainWorld('electron', {

@@ -94,6 +94,13 @@ function registerIpcHandlers() {
         return addon.primMST(currentMatrix)
     })
 
+    // Венгерский алгоритм (матрица с рендерера — та же, что в UI; не processedMatrix из build-graph)
+    ipcMain.handle('solve-hungarian', async (event, matrix, maximize) => {
+        const m = Array.isArray(matrix) ? matrix : currentMatrix
+        if (!addon || !m) throw new Error('Addon or matrix not available')
+        return addon.solveHungarian(m, !!maximize)
+    })
+
     // Открытие файла
     ipcMain.handle('open-file', async () => {
         if (!win) throw new Error('Window not available')

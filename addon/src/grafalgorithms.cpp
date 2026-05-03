@@ -206,6 +206,137 @@ public:
         return cycle;
     }
 
+    // Венгерский алгоритм для задачи о назначениях
+    struct Assignment
+    {
+        std::vector<int> assignment; // assignment[i] = j означает, что работник i назначен на работу j
+        double cost;
+    };
+
+    Assignment hungarianAlgorithm()
+    {
+        Assignment result;
+
+        if (numVertices == 0)
+            return result;
+
+        int n = numVertices;
+
+        // Находим максимальный вес для штрафа
+        double maxWeight = 0;
+        for (int i = 0; i < n; i++)
+        {
+            for (int j = 0; j < n; j++)
+            {
+                // Проверяем все пары, даже с нулевым весом
+                bool hasEdge = false;
+                for (const auto &neighbor : adjacencyList[i])
+                {
+                    if (neighbor.vertex == j)
+                    {
+                        maxWeight = std::max(maxWeight, neighbor.weight);
+                        hasEdge = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        double penalty = (maxWeight + 1) * 100;
+
+        // Строим матрицу стоимостей (включая нулевые)
+        std::vector<std::vector<double>> costMatrix(n, std::vector<double>(n, penalty));
+
+        for (int i = 0; i < n; i++)
+        {
+            for (const auto &neighbor : adjacencyList[i])
+            {
+                costMatrix[i][neighbor.vertex] = neighbor.weight; // 0 тоже сохраняется
+            }
+        }
+
+        // Для задачи о назначениях матрица должна быть полной
+        // Заполняем диагональ и отсутствующие ребра штрафом
+
+        // Венгерский алгоритм
+        std::vector<double> u(n + 1, 0), v(n + 1, 0);
+        std::vector<int> p(n + 1, 0), way(n + 1, 0);
+
+        for (int i = 1; i <= n; i++)
+        {
+            p[0] = i;
+            int j0 = 0;
+            std::vector<double> minv(n + 1, penalty);
+            std::vector<bool> used(n + 1, false);
+
+            do
+            {
+                used[j0] = true;
+                int i0 = p[j0], j1 = 0;
+                double delta = penalty;
+
+                for (int j = 1; j <= n; j++)
+                {
+                    if (!used[j])
+                    {
+                        double cur = costMatrix[i0 - 1][j - 1] - u[i0] - v[j];
+                        if (cur < minv[j])
+                        {
+                            minv[j] = cur;
+                            way[j] = j0;
+                        }
+                        if (minv[j] < delta)
+                        {
+                            delta = minv[j];
+                            j1 = j;
+                        }
+                    }
+                }
+
+                for (int j = 0; j <= n; j++)
+                {
+                    if (used[j])
+                    {
+                        u[p[j]] += delta;
+                        v[j] -= delta;
+                    }
+                    else
+                    {
+                        minv[j] -= delta;
+                    }
+                }
+
+                j0 = j1;
+            } while (p[j0] != 0);
+
+            do
+            {
+                int j1 = way[j0];
+                p[j0] = p[j1];
+                j0 = j1;
+            } while (j0 != 0);
+        }
+
+        // Формируем результат
+        result.assignment.resize(n);
+        for (int j = 1; j <= n; j++)
+        {
+            if (p[j] != 0)
+            {
+                result.assignment[p[j] - 1] = j - 1;
+            }
+        }
+
+        // Вычисляем общую стоимость
+        result.cost = 0;
+        for (int i = 0; i < n; i++)
+        {
+            result.cost += costMatrix[i][result.assignment[i]];
+        }
+
+        return result;
+    }
+
     // Задача коммивояжера (метод ветвей и границ)
     struct TSPResult
     {
@@ -1053,6 +1184,151 @@ Napi::Value KruskalMST(const Napi::CallbackInfo &info)
     return result;
 }
 
+// Венгерский алгоритм
+Napi::Value SolveHungarian(const Napi::CallbackInfo &info)
+{
+    Napi::Env env = info.Env();
+
+    if (info.Length() < 1 || !info[0].IsArray())
+    {
+        Napi::TypeError::New(env, "Expected adjacency matrix").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    Napi::Array matrixArray = info[0].As<Napi::Array>();
+    int n = matrixArray.Length();
+
+    if (n == 0)
+    {
+        Napi::TypeError::New(env, "Matrix cannot be empty").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    bool maximize = false;
+    if (info.Length() >= 2 && info[1].IsBoolean())
+    {
+        maximize = info[1].As<Napi::Boolean>().Value();
+    }
+
+    std::vector<std::vector<double>> orig(n, std::vector<double>(n, 0));
+    double coeffMax = 0;
+    for (int i = 0; i < n; i++)
+    {
+        Napi::Array row = matrixArray.Get(i).As<Napi::Array>();
+        if (row.Length() != n)
+        {
+            Napi::TypeError::New(env, "Matrix must be square").ThrowAsJavaScriptException();
+            return env.Null();
+        }
+        for (int j = 0; j < n; j++)
+        {
+            orig[i][j] = row.Get(j).As<Napi::Number>().DoubleValue();
+            coeffMax = std::max(coeffMax, orig[i][j]);
+        }
+    }
+
+    // Минимизация: венгерский на orig. Максимизация суммы orig: минимизируем (coeffMax - orig[i][j])
+    std::vector<std::vector<double>> costMatrix(n, std::vector<double>(n, 0));
+    for (int i = 0; i < n; i++)
+    {
+        for (int j = 0; j < n; j++)
+        {
+            costMatrix[i][j] = maximize ? (coeffMax - orig[i][j]) : orig[i][j];
+        }
+    }
+
+    // Венгерский алгоритм (минимизация по costMatrix)
+    std::vector<double> u(n + 1, 0), v(n + 1, 0);
+    std::vector<int> p(n + 1, 0), way(n + 1, 0);
+
+    for (int i = 1; i <= n; i++)
+    {
+        p[0] = i;
+        int j0 = 0;
+        std::vector<double> minv(n + 1, std::numeric_limits<double>::max());
+        std::vector<bool> used(n + 1, false);
+
+        do
+        {
+            used[j0] = true;
+            int i0 = p[j0], j1 = 0;
+            double delta = std::numeric_limits<double>::max();
+
+            for (int j = 1; j <= n; j++)
+            {
+                if (!used[j])
+                {
+                    double cur = costMatrix[i0 - 1][j - 1] - u[i0] - v[j];
+                    if (cur < minv[j])
+                    {
+                        minv[j] = cur;
+                        way[j] = j0;
+                    }
+                    if (minv[j] < delta)
+                    {
+                        delta = minv[j];
+                        j1 = j;
+                    }
+                }
+            }
+
+            for (int j = 0; j <= n; j++)
+            {
+                if (used[j])
+                {
+                    u[p[j]] += delta;
+                    v[j] -= delta;
+                }
+                else
+                {
+                    minv[j] -= delta;
+                }
+            }
+
+            j0 = j1;
+        } while (p[j0] != 0);
+
+        do
+        {
+            int j1 = way[j0];
+            p[j0] = p[j1];
+            j0 = j1;
+        } while (j0 != 0);
+    }
+
+    // Формируем результат
+    std::vector<int> assignment(n);
+    for (int j = 1; j <= n; j++)
+    {
+        if (p[j] != 0)
+        {
+            assignment[p[j] - 1] = j - 1;
+        }
+    }
+
+    // Сумма по исходной матрице (для max и min одинаково интерпретируем ячейки orig)
+    double totalCost = 0;
+    for (int i = 0; i < n; i++)
+    {
+        totalCost += orig[i][assignment[i]];
+    }
+
+    Napi::Object result = Napi::Object::New(env);
+
+    Napi::Array assignArray = Napi::Array::New(env, assignment.size());
+    for (size_t i = 0; i < assignment.size(); i++)
+    {
+        assignArray.Set(i, assignment[i]);
+    }
+
+    result.Set("assignment", assignArray);
+    result.Set("cost", totalCost);
+    result.Set("maximize", Napi::Boolean::New(env, maximize));
+    result.Set("numVertices", n);
+
+    return result;
+}
+
 // Построение MST алгоритмом Прима
 Napi::Value PrimMST(const Napi::CallbackInfo &info)
 {
@@ -1120,6 +1396,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
     exports.Set("solveTSP", Napi::Function::New(env, SolveTSP));
     exports.Set("kruskalMST", Napi::Function::New(env, KruskalMST));
     exports.Set("primMST", Napi::Function::New(env, PrimMST));
+    exports.Set("solveHungarian", Napi::Function::New(env, SolveHungarian)); // <-- Должна быть эта строка
     return exports;
 }
 

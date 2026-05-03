@@ -4,11 +4,11 @@ class InteractiveGraphCanvas {
         this.canvas = document.getElementById('graphCanvas');
         this.ctx = this.canvas.getContext('2d');
         this.container = document.getElementById('canvas-container');
-        
+        this.columnTitles = null;
         this.minimapCanvas = document.getElementById('minimapCanvas');
         this.minimapCtx = this.minimapCanvas.getContext('2d');
         this.minimapContainer = document.getElementById('minimap');
-
+        this.matchingEdges = null;
         this.camera = { x: 0, y: 0, zoom: 1 };
         this.targetCamera = { x: 0, y: 0, zoom: 1 };
         
@@ -35,7 +35,12 @@ class InteractiveGraphCanvas {
         
         this.init();
     }
-    
+    setColumnTitles(leftTitle, rightTitle) {
+        this.columnTitles = {
+            left: leftTitle,
+            right: rightTitle
+        };
+    }
     init() {
         this.resizeCanvas();
         this.setupEventListeners();
@@ -50,6 +55,15 @@ class InteractiveGraphCanvas {
         this.minimapCanvas.height = 150;
     }
     
+    showMatching(edges) {
+        // Очищаем все подсветки
+        this.highlightedPath = [];
+        this.highlightedVertices = [];
+        
+        // Сохраняем ребра паросочетания
+        this.matchingEdges = edges;
+    }
+
     applyCursor(type) {
         // Создаем кастомный черный курсор через canvas
         const cursorCanvas = document.createElement('canvas');
@@ -344,7 +358,7 @@ class InteractiveGraphCanvas {
     
     setGraphType(type) { this.graphType = type; }
     
-    clearHighlights() { this.highlightedVertices = []; this.highlightedPath = []; }
+    clearHighlights() { this.highlightedVertices = []; this.highlightedPath = []; this.matchingEdges = null;}
     highlightVertices(v) { this.highlightedVertices = v; this.highlightedPath = []; }
     highlightPath(p) { this.highlightedPath = p; this.highlightedVertices = []; }
     
@@ -377,10 +391,62 @@ class InteractiveGraphCanvas {
         if (this.currentGraphData) {
             this.drawHighlightedPathEdges();
             this.drawEdges();
+            this.drawMatchingEdges();
             this.drawNodes();
         }
         this.ctx.restore();
         if (this.currentGraphData) this.drawMinimap();
+    }
+
+    drawMatchingEdges() {
+        if (!this.matchingEdges || this.matchingEdges.length === 0) return;
+        
+        const { vertices } = this.currentGraphData;
+        
+        // Отрисовываем каждое ребро паросочетания отдельно
+        this.matchingEdges.forEach(edge => {
+            const from = vertices[edge.from];
+            const to = vertices[edge.to];
+            
+            if (!from || !to) return;
+            
+            // Красная линия
+            this.ctx.strokeStyle = '#e74c3c';
+            this.ctx.lineWidth = 4;
+            this.ctx.shadowColor = 'rgba(231, 76, 60, 0.5)';
+            this.ctx.shadowBlur = 8;
+            this.ctx.beginPath();
+            this.ctx.moveTo(from.x, from.y);
+            this.ctx.lineTo(to.x, to.y);
+            this.ctx.stroke();
+            this.ctx.shadowColor = 'transparent';
+            this.ctx.shadowBlur = 0;
+            
+            // Стрелки в обе стороны
+            this.drawArrow(from, to, '#e74c3c', 4);
+            this.drawArrow(to, from, '#e74c3c', 4);
+            
+            // Вес ребра
+            if (edge.weight !== 0) {
+                const midX = (from.x + to.x) / 2;
+                const midY = (from.y + to.y) / 2;
+                const weightText = edge.weight.toFixed(1);
+                const textWidth = this.ctx.measureText(weightText).width;
+                
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+                this.ctx.fillRect(midX - textWidth / 2 - 6, midY - 11, textWidth + 12, 22);
+                
+                this.ctx.strokeStyle = '#e74c3c';
+                this.ctx.lineWidth = 2;
+                this.ctx.strokeRect(midX - textWidth / 2 - 6, midY - 11, textWidth + 12, 22);
+                
+                this.ctx.fillStyle = '#e74c3c';
+                this.ctx.font = 'bold 13px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillText(weightText, midX, midY);
+            }
+        });
     }
     
     drawGrid() {
@@ -391,6 +457,7 @@ class InteractiveGraphCanvas {
         const sy = Math.floor(-this.camera.y / this.camera.zoom / gs) * gs;
         const ex = sx + w + gs * 2;
         const ey = sy + h + gs * 2;
+        
         this.ctx.strokeStyle = 'rgba(0,0,0,0.05)';
         this.ctx.lineWidth = 1;
         for (let x = sx; x <= ex; x += gs) { this.ctx.beginPath(); this.ctx.moveTo(x, sy); this.ctx.lineTo(x, ey); this.ctx.stroke(); }
@@ -398,6 +465,20 @@ class InteractiveGraphCanvas {
         this.ctx.strokeStyle = 'rgba(0,0,0,0.2)'; this.ctx.lineWidth = 2;
         this.ctx.beginPath(); this.ctx.moveTo(sx, 0); this.ctx.lineTo(ex, 0); this.ctx.stroke();
         this.ctx.beginPath(); this.ctx.moveTo(0, sy); this.ctx.lineTo(0, ey); this.ctx.stroke();
+        
+        // Отображаем заголовки столбцов, если они есть
+        if (this.columnTitles) {
+            this.ctx.fillStyle = '#2c3e50';
+            this.ctx.font = 'bold 16px Arial';
+            this.ctx.textAlign = 'center';
+            
+            if (this.columnTitles.left) {
+                this.ctx.fillText(this.columnTitles.left, -200, -300);
+            }
+            if (this.columnTitles.right) {
+                this.ctx.fillText(this.columnTitles.right, 200, -300);
+            }
+        }
     }
     
 
@@ -419,11 +500,22 @@ class InteractiveGraphCanvas {
             // Находим вес ребра из матрицы
             let weight = 0;
             const matrix = window.currentMatrix || this.currentMatrix;
-            if (matrix && matrix[fromVertex] && matrix[fromVertex][toVertex] !== undefined) {
-                weight = matrix[fromVertex][toVertex];
+            
+            // Определяем индексы в исходной матрице
+            let realFrom = fromVertex;
+            let realTo = toVertex;
+            
+            // Если это bipartite граф (вершины с n по 2n-1 это правые)
+            const n = this.currentGraphData.numVertices / 2;
+            if (toVertex >= n) {
+                realTo = toVertex - n; // Приводим к индексу правой колонки
             }
             
-            // Рисуем красную линию пути (без белого фона)
+            if (matrix && matrix[realFrom] && matrix[realFrom][realTo] !== undefined) {
+                weight = matrix[realFrom][realTo];
+            }
+            
+            // Рисуем красную линию
             this.ctx.strokeStyle = '#e74c3c'; 
             this.ctx.lineWidth = 4;
             this.ctx.shadowColor = 'rgba(231, 76, 60, 0.5)'; 
@@ -435,31 +527,24 @@ class InteractiveGraphCanvas {
             this.ctx.shadowColor = 'transparent'; 
             this.ctx.shadowBlur = 0;
             
-            // Рисуем красные стрелки
+            // Рисуем стрелки в обе стороны
             this.drawArrow(from, to, '#e74c3c', 4);
+            this.drawArrow(to, from, '#e74c3c', 4);
             
-            // Для неориентированного графа рисуем стрелки в обе стороны
-            if (this.graphType === 'undirected') {
-                this.drawArrow(to, from, '#e74c3c', 4);
-            }
-            
-            // Отображаем вес красным цветом
+            // Отображаем вес
             if (weight !== 0) {
                 const midX = (from.x + to.x) / 2;
                 const midY = (from.y + to.y) / 2;
                 const weightText = weight.toFixed(1);
                 const textWidth = this.ctx.measureText(weightText).width;
                 
-                // Белый фон для текста
                 this.ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
                 this.ctx.fillRect(midX - textWidth / 2 - 6, midY - 11, textWidth + 12, 22);
                 
-                // Красная рамка
                 this.ctx.strokeStyle = '#e74c3c';
                 this.ctx.lineWidth = 2;
                 this.ctx.strokeRect(midX - textWidth / 2 - 6, midY - 11, textWidth + 12, 22);
                 
-                // Красный текст
                 this.ctx.fillStyle = '#e74c3c';
                 this.ctx.font = 'bold 13px Arial';
                 this.ctx.textAlign = 'center';
@@ -553,9 +638,26 @@ class InteractiveGraphCanvas {
             this.ctx.fill();
             this.ctx.strokeStyle = 'white'; this.ctx.lineWidth = (hl || ip) ? 4 : 2; this.ctx.stroke();
             this.ctx.shadowColor = 'transparent'; this.ctx.shadowBlur = 0;
-            this.ctx.fillStyle = 'white'; this.ctx.font = 'bold 16px Arial';
+            this.ctx.fillStyle = 'white'; this.ctx.font = 'bold 14px Arial';
             this.ctx.textAlign = 'center'; this.ctx.textBaseline = 'middle';
-            this.ctx.fillText(i, v.x, v.y);
+            
+            // Отображаем либо название, либо номер вершины
+            let label = i.toString();
+            if (v.label) {
+                label = v.label;
+                // Если есть название, показываем его над вершиной
+                this.ctx.fillStyle = '#2c3e50';
+                this.ctx.font = 'bold 13px Arial';
+                this.ctx.fillText(label, v.x, v.y - 35);
+                
+                // Номер вершины внутри круга
+                this.ctx.fillStyle = 'white';
+                this.ctx.font = 'bold 16px Arial';
+                this.ctx.fillText(i.toString(), v.x, v.y);
+            } else {
+                // Если названия нет, просто номер
+                this.ctx.fillText(i.toString(), v.x, v.y);
+            }
         });
     }
     

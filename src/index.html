@@ -136,6 +136,16 @@
                 <div class="option-desc">Находит эйлеров цикл в графе (если существует)</div>
             </div>
         </div>
+
+        <div class="option-category">Задача о назначениях</div>
+
+        <div class="option-item" onclick="solveHungarian()">
+            <div class="option-icon">🎯</div>
+            <div class="option-info">
+                <div class="option-title">Венгерский алгоритм</div>
+                <div class="option-desc">Решает задачу о назначениях</div>
+            </div>
+        </div>
         
         <div class="option-category">Другое</div>
         
@@ -292,6 +302,58 @@
         
         <button onclick="deleteEdge()" class="danger">✂️ Удалить ребро</button>
         <button onclick="closeSubmenu('deleteEdgeMenu')" style="width: 100%; margin-top: 10px; background: #95a5a6;">Отмена</button>
+    </div>
+    
+    <div id="hungarianModeModal" class="modal">
+        <div class="modal-content" style="max-width: 440px;">
+            <h3>Задача о назначениях</h3>
+            <p style="color: #7f8c8d; margin-bottom: 18px; line-height: 1.45;">
+                Выберите, что нужно оптимизировать по сумме элементов матрицы (один элемент в каждой строке и в каждом столбце):
+            </p>
+            <button type="button" class="hungarian-mode-btn hungarian-mode-min" onclick="chooseHungarianMode(false)">
+                <span class="hungarian-mode-title">Минимизация суммы</span>
+                <span class="hungarian-mode-desc">Матрица затрат: расстояния, штрафы, время</span>
+            </button>
+            <button type="button" class="hungarian-mode-btn hungarian-mode-max" onclick="chooseHungarianMode(true)">
+                <span class="hungarian-mode-title">Максимизация суммы</span>
+                <span class="hungarian-mode-desc">Матрица эффективности: выручка, качество, баллы</span>
+            </button>
+            <div class="modal-buttons" style="margin-top: 16px;">
+                <button type="button" onclick="closeHungarianModeModal()" style="background: #95a5a6; width: 100%;">Отмена</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="labelsModal" class="modal">
+        <div class="modal-content">
+            <h3>Введите названия для венгерского алгоритма</h3>
+            <p id="hungarianModeSummary" style="color: #3498db; font-size: 13px; font-weight: 600; margin-bottom: 14px;"></p>
+            
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #2c3e50;">
+                    Названия для левого столбца (работники):
+                </label>
+                <textarea id="leftLabels" placeholder="Введите названия через запятую или каждое с новой строки&#10;Например:&#10;Алиса&#10;Боб&#10;Чарли" 
+                        style="width: 100%; height: 100px; background: #f8f9fa; color: #2c3e50; border: 1px solid #dee2e6; border-radius: 6px; padding: 10px; font-family: 'Courier New', monospace;"></textarea>
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #2c3e50;">
+                    Названия для правого столбца (задачи):
+                </label>
+                <textarea id="rightLabels" placeholder="Введите названия через запятую или каждое с новой строки&#10;Например:&#10;Дизайн&#10;Кодинг&#10;Тестирование" 
+                        style="width: 100%; height: 100px; background: #f8f9fa; color: #2c3e50; border: 1px solid #dee2e6; border-radius: 6px; padding: 10px; font-family: 'Courier New', monospace;"></textarea>
+            </div>
+            
+            <p style="color: #7f8c8d; font-size: 12px; margin-bottom: 15px;">
+                Подсказка: Если названий меньше, чем вершин, оставшиеся будут пронумерованы автоматически.
+            </p>
+            
+            <div class="modal-buttons">
+                <button onclick="closeLabelsModal()" style="background: #95a5a6;">Отмена</button>
+                <button onclick="submitLabels()" class="success">▶ Запустить алгоритм</button>
+            </div>
+        </div>
     </div>
     <!-- Сначала загружаем app.js, где объявлены глобальные переменные -->
     <script src="app.js"></script>
