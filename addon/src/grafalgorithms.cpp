@@ -522,12 +522,24 @@ public:
         }
     }
 
-    // Поиск кратчайшего пути (алгоритм Дейкстры)
-    std::vector<int> dijkstra(int start, int end)
+    // Поиск кратчайшего пути (алгоритм Дейкстры): путь и расстояния от start до каждой вершины
+    struct DijkstraResult
     {
         std::vector<int> path;
+        std::vector<double> distances;
+        std::vector<int> parent;
+    };
+
+    DijkstraResult dijkstra(int start, int end)
+    {
+        DijkstraResult out;
         if (start < 0 || start >= numVertices || end < 0 || end >= numVertices)
-            return path;
+        {
+            out.distances.assign(static_cast<size_t>(std::max(0, numVertices)),
+                                 std::numeric_limits<double>::infinity());
+            out.parent.assign(static_cast<size_t>(std::max(0, numVertices)), -1);
+            return out;
+        }
 
         std::vector<double> dist(numVertices, std::numeric_limits<double>::infinity());
         std::vector<int> parent(numVertices, -1);
@@ -563,16 +575,19 @@ public:
             }
         }
 
-        if (parent[end] != -1 || start == end)
+        out.distances = std::move(dist);
+        out.parent = std::move(parent);
+
+        if (out.parent[static_cast<size_t>(end)] != -1 || start == end)
         {
-            for (int v = end; v != -1; v = parent[v])
+            for (int v = end; v != -1; v = out.parent[static_cast<size_t>(v)])
             {
-                path.push_back(v);
+                out.path.push_back(v);
             }
-            std::reverse(path.begin(), path.end());
+            std::reverse(out.path.begin(), out.path.end());
         }
 
-        return path;
+        return out;
     }
 
     // Проверка связности
@@ -1089,13 +1104,47 @@ Napi::Value FindShortestPath(const Napi::CallbackInfo &info)
 
     GRAF graf;
     graf.buildFromMatrix(matrix);
-    auto path = graf.dijkstra(startVertex, endVertex);
+    auto dj = graf.dijkstra(startVertex, endVertex);
 
-    Napi::Array result = Napi::Array::New(env, path.size());
-    for (size_t i = 0; i < path.size(); i++)
+    Napi::Object result = Napi::Object::New(env);
+
+    Napi::Array pathArr = Napi::Array::New(env, dj.path.size());
+    for (size_t i = 0; i < dj.path.size(); i++)
     {
-        result.Set(i, path[i]);
+        pathArr.Set(i, dj.path[i]);
     }
+    result.Set("path", pathArr);
+
+    const int nv = graf.getNumVertices();
+    Napi::Array distArr = Napi::Array::New(env, nv);
+    for (int i = 0; i < nv; i++)
+    {
+        double d = dj.distances[static_cast<size_t>(i)];
+        if (std::isfinite(d))
+        {
+            distArr.Set(i, Napi::Number::New(env, d));
+        }
+        else
+        {
+            distArr.Set(i, env.Null());
+        }
+    }
+    result.Set("vertexDistances", distArr);
+
+    Napi::Array parentArr = Napi::Array::New(env, nv);
+    for (int i = 0; i < nv; i++)
+    {
+        int p = (i < static_cast<int>(dj.parent.size()) ? dj.parent[static_cast<size_t>(i)] : -1);
+        if (p < 0)
+        {
+            parentArr.Set(i, env.Null());
+        }
+        else
+        {
+            parentArr.Set(i, p);
+        }
+    }
+    result.Set("vertexParents", parentArr);
 
     return result;
 }

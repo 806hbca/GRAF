@@ -28,6 +28,8 @@ class InteractiveGraphCanvas {
         this.gridSize = 50;
         this.highlightedVertices = [];
         this.highlightedPath = [];
+        /** Подписи алгоритмов по рёбрам: [{ from, to, value }, ...] — точка как у веса ребра */
+        this.algorithmEdgeLabels = null;
         
         this.shiftPressed = false;
         this.shiftFirstVertex = null;
@@ -62,6 +64,7 @@ class InteractiveGraphCanvas {
         
         // Сохраняем ребра паросочетания
         this.matchingEdges = edges;
+        this.algorithmEdgeLabels = null;
     }
 
     applyCursor(type) {
@@ -194,9 +197,12 @@ class InteractiveGraphCanvas {
             this.mouse.dragStartX = worldPos.x;
             this.mouse.dragStartY = worldPos.y;
             if (this.currentGraphData) {
-                this.currentGraphData.vertices[this.mouse.dragNodeIndex] = {
-                    x: this.vertexPositions[this.mouse.dragNodeIndex].x,
-                    y: this.vertexPositions[this.mouse.dragNodeIndex].y
+                const idx = this.mouse.dragNodeIndex;
+                const prev = this.currentGraphData.vertices[idx] || {};
+                this.currentGraphData.vertices[idx] = {
+                    ...prev,
+                    x: this.vertexPositions[idx].x,
+                    y: this.vertexPositions[idx].y
                 };
             }
         }
@@ -358,9 +364,27 @@ class InteractiveGraphCanvas {
     
     setGraphType(type) { this.graphType = type; }
     
-    clearHighlights() { this.highlightedVertices = []; this.highlightedPath = []; this.matchingEdges = null;}
-    highlightVertices(v) { this.highlightedVertices = v; this.highlightedPath = []; }
-    highlightPath(p) { this.highlightedPath = p; this.highlightedVertices = []; }
+    clearHighlights() {
+        this.highlightedVertices = [];
+        this.highlightedPath = [];
+        this.matchingEdges = null;
+        this.algorithmEdgeLabels = null;
+    }
+    highlightVertices(v) {
+        this.highlightedVertices = v;
+        this.highlightedPath = [];
+        this.algorithmEdgeLabels = null;
+    }
+    highlightPath(p) {
+        this.highlightedPath = p;
+        this.highlightedVertices = [];
+        this.algorithmEdgeLabels = null;
+    }
+
+    /** @param {{from:number,to:number,value:number}[]} entries */
+    setAlgorithmEdgeLabels(entries) {
+        this.algorithmEdgeLabels = entries && entries.length ? entries : null;
+    }
     
     isEdgeInPath(from, to) {
         for (let i = 0; i < this.highlightedPath.length - 1; i++) {
@@ -376,7 +400,357 @@ class InteractiveGraphCanvas {
         }
         return false;
     }
-    
+
+    /** Радиус круга вершины (совпадает с drawNodeBodies) */
+    static vertexBodyRadius() {
+        return 25;
+    }
+
+    /**
+     * Точка на окружности вершины: от центра fromC в сторону towardC на inset пикселей (не дальше середины хорды).
+     */
+    vertexRimPoint(fromC, towardC, inset) {
+        const dx = towardC.x - fromC.x;
+        const dy = towardC.y - fromC.y;
+        const L = Math.hypot(dx, dy);
+        if (L < 1e-6) return { x: fromC.x, y: fromC.y };
+        const maxInset = Math.min(inset, Math.max(2, L / 2 - 1.5));
+        const ux = dx / L;
+        const uy = dy / L;
+        return { x: fromC.x + ux * maxInset, y: fromC.y + uy * maxInset };
+    }
+
+    /**
+     * Прямое ребро центр–центр (режим без multi mod), как в исходной версии.
+     */
+    drawStraightGraphEdge(from, to, edge, color, lineWidth, extra = {}) {
+        const { forceBidirArrows = false } = extra;
+        if (!from || !to) return;
+        this.ctx.strokeStyle = color;
+        this.ctx.lineWidth = lineWidth;
+        this.ctx.beginPath();
+        this.ctx.moveTo(from.x, from.y);
+        this.ctx.lineTo(to.x, to.y);
+        this.ctx.stroke();
+
+        const w = edge.weight;
+        if (w !== 0 && (w !== 1 || edge.isBidirectional)) {
+            const mx = (from.x + to.x) / 2;
+            const my = (from.y + to.y) / 2;
+            const txt = Number(w).toFixed(1);
+            const tw = this.ctx.measureText(txt).width;
+            this.ctx.fillStyle = 'rgba(255,255,255,0.95)';
+            this.ctx.fillRect(mx - tw / 2 - 6, my - 11, tw + 12, 22);
+            this.ctx.strokeStyle = color;
+            this.ctx.lineWidth = 1;
+            this.ctx.strokeRect(mx - tw / 2 - 6, my - 11, tw + 12, 22);
+            this.ctx.fillStyle = color;
+            this.ctx.font = 'bold 13px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText(txt, mx, my);
+        }
+
+        if (this.graphType !== 'directed') return;
+        if (forceBidirArrows) {
+            this.drawArrow(from, to, color, 1);
+            this.drawArrow(to, from, color, 1);
+        } else if (edge.isBidirectional) {
+            if (!this.isEdgeInPath(edge.from, edge.to)) this.drawArrow(from, to, color, 1);
+            if (!this.isEdgeInPath(edge.to, edge.from)) this.drawArrow(to, from, color, 1);
+        } else if (!this.isEdgeInPath(edge.from, edge.to)) {
+            this.drawArrow(from, to, color, 1);
+        }
+    }
+
+    getGraphCentroid(vertices) {
+        let cx = 0;
+        let cy = 0;
+        let n = 0;
+        vertices.forEach((v) => {
+            if (v) {
+                cx += v.x;
+                cy += v.y;
+                n++;
+            }
+        });
+        if (!n) return { x: 0, y: 0 };
+        return { x: cx / n, y: cy / n };
+    }
+
+    prepareEdgeLayoutMetadata(edges) {
+        const groups = new Map();
+        edges.forEach((e, i) => {
+            const key = `${e.from},${e.to}`;
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key).push(i);
+        });
+        return edges.map((e, i) => {
+            const key = `${e.from},${e.to}`;
+            const indices = groups.get(key);
+            const slot = indices.indexOf(i);
+            return { slot, total: indices.length, isSelf: e.from === e.to };
+        });
+    }
+
+    quadBezierPoint(t, p0, p1, p2) {
+        const u = 1 - t;
+        return {
+            x: u * u * p0.x + 2 * u * t * p1.x + t * t * p2.x,
+            y: u * u * p0.y + 2 * u * t * p1.y + t * t * p2.y
+        };
+    }
+
+    quadBezierTangent(t, p0, p1, p2) {
+        const u = 1 - t;
+        const dx = 2 * u * (p1.x - p0.x) + 2 * t * (p2.x - p1.x);
+        const dy = 2 * u * (p1.y - p0.y) + 2 * t * (p2.y - p1.y);
+        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+        return { dx: dx / len, dy: dy / len };
+    }
+
+    drawSelfLoopArc(fromPt, weight, slot, total, centroid, color, lineWidth, drawDirectedArrow, edgeIsBidirectional, vertexIndex) {
+        const nr = 25;
+        const vx = fromPt.x;
+        const vy = fromPt.y;
+        let ox = vx - centroid.x;
+        let oy = vy - centroid.y;
+        let olen = Math.hypot(ox, oy);
+        if (olen < 22) {
+            const idx = typeof vertexIndex === 'number' ? vertexIndex : 0;
+            const golden = 2.39996322972865332;
+            ox = Math.cos(idx * golden);
+            oy = Math.sin(idx * golden);
+            olen = 1;
+        }
+        ox /= olen;
+        oy /= olen;
+        const slotRot = total > 1 ? (slot - (total - 1) / 2) * 0.55 : 0;
+        const base = Math.atan2(oy, ox) + slotRot;
+        const arcSpan = Math.PI * 0.75;
+        const t0 = base - arcSpan / 2;
+        const t1 = base + arcSpan / 2;
+        const bulge = 88 + slot * 22 + (total > 1 ? 18 : 0);
+        const p0 = { x: vx + Math.cos(t0) * nr, y: vy + Math.sin(t0) * nr };
+        const p2 = { x: vx + Math.cos(t1) * nr, y: vy + Math.sin(t1) * nr };
+        const p1 = { x: vx + Math.cos(base) * (nr + bulge), y: vy + Math.sin(base) * (nr + bulge) };
+
+        this.ctx.save();
+        this.ctx.lineCap = 'round';
+        this.ctx.lineJoin = 'round';
+        this.ctx.strokeStyle = color;
+        this.ctx.lineWidth = Math.max(lineWidth, 3);
+        this.ctx.beginPath();
+        this.ctx.moveTo(p0.x, p0.y);
+        this.ctx.quadraticCurveTo(p1.x, p1.y, p2.x, p2.y);
+        this.ctx.stroke();
+        this.ctx.restore();
+
+        const showWeight = weight !== 0 && (weight !== 1 || drawDirectedArrow || edgeIsBidirectional);
+        if (showWeight) {
+            const tW = total > 1 ? 0.28 + (0.5 * slot) / Math.max(1, total - 1) : 0.5;
+            let pos = this.quadBezierPoint(tW, p0, p1, p2);
+            const tan = this.quadBezierTangent(tW, p0, p1, p2);
+            const perpX = -tan.dy;
+            const perpY = tan.dx;
+            const labelOff = (slot - (total - 1) / 2) * 20;
+            pos = { x: pos.x + perpX * labelOff, y: pos.y + perpY * labelOff };
+            const txt = Number(weight).toFixed(1);
+            const tw = this.ctx.measureText(txt).width;
+            this.ctx.fillStyle = 'rgba(255,255,255,0.95)';
+            this.ctx.fillRect(pos.x - tw / 2 - 6, pos.y - 11, tw + 12, 22);
+            this.ctx.strokeStyle = color;
+            this.ctx.lineWidth = 1;
+            this.ctx.strokeRect(pos.x - tw / 2 - 6, pos.y - 11, tw + 12, 22);
+            this.ctx.fillStyle = color;
+            this.ctx.font = 'bold 13px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText(txt, pos.x, pos.y);
+        }
+
+        if (drawDirectedArrow) {
+            const tArrow = 0.88;
+            const pt = this.quadBezierPoint(tArrow, p0, p1, p2);
+            const tip = { x: vx + Math.cos(t1) * (nr - 2), y: vy + Math.sin(t1) * (nr - 2) };
+            this.drawArrow(pt, tip, color, lineWidth);
+        }
+    }
+
+    drawCurvedEdgeArc(fromPt, toPt, weight, slot, total, color, lineWidth, drawDirectedArrow, bidirArrows, edgeIsBidirectional) {
+        const vr = InteractiveGraphCanvas.vertexBodyRadius();
+        const dx0 = toPt.x - fromPt.x;
+        const dy0 = toPt.y - fromPt.y;
+        const L0 = Math.hypot(dx0, dy0);
+        if (L0 < 1e-6) return null;
+
+        const p0 = this.vertexRimPoint(fromPt, toPt, vr);
+        const p2 = this.vertexRimPoint(toPt, fromPt, vr);
+
+        const dx = p2.x - p0.x;
+        const dy = p2.y - p0.y;
+        const L = Math.hypot(dx, dy);
+        if (L < 1e-6) return null;
+
+        const mxCent = (fromPt.x + toPt.x) / 2;
+        const myCent = (fromPt.y + toPt.y) / 2;
+        const mx = (p0.x + p2.x) / 2;
+        const my = (p0.y + p2.y) / 2;
+        const centroid = this.currentGraphData
+            ? this.getGraphCentroid(this.currentGraphData.vertices)
+            : { x: mx, y: my };
+        const px = -dy / L;
+        const py = dx / L;
+        const slotIndex = slot - (total - 1) / 2;
+        const baseSep = 56;
+        const extra = Math.min(72, L0 * 0.22);
+        let curve = slotIndex * (baseSep + extra);
+        if (total === 1) {
+            const gcx = centroid.x - mxCent;
+            const gcy = centroid.y - myCent;
+            const dot = gcx * px + gcy * py;
+            const bendAway = (dot >= 0 ? -1 : 1) * Math.max(28, Math.min(48, L0 * 0.18));
+            curve += bendAway;
+        }
+        const p1 = { x: mx + px * curve, y: my + py * curve };
+
+        this.ctx.save();
+        this.ctx.lineCap = 'round';
+        this.ctx.lineJoin = 'round';
+        this.ctx.strokeStyle = color;
+        this.ctx.lineWidth = lineWidth;
+        this.ctx.beginPath();
+        this.ctx.moveTo(p0.x, p0.y);
+        this.ctx.quadraticCurveTo(p1.x, p1.y, p2.x, p2.y);
+        this.ctx.stroke();
+        this.ctx.restore();
+
+        const showWeight = weight !== 0 && (weight !== 1 || bidirArrows || edgeIsBidirectional);
+        if (showWeight) {
+            const tW = total > 1 ? 0.26 + (0.48 * slot) / Math.max(1, total - 1) : 0.5;
+            let pos = this.quadBezierPoint(tW, p0, p1, p2);
+            const tan = this.quadBezierTangent(tW, p0, p1, p2);
+            const perpX = -tan.dy;
+            const perpY = tan.dx;
+            const labelOff = slotIndex * 28;
+            pos = { x: pos.x + perpX * labelOff, y: pos.y + perpY * labelOff };
+            const txt = Number(weight).toFixed(1);
+            const tw = this.ctx.measureText(txt).width;
+            this.ctx.fillStyle = 'rgba(255,255,255,0.95)';
+            this.ctx.fillRect(pos.x - tw / 2 - 6, pos.y - 11, tw + 12, 22);
+            this.ctx.strokeStyle = color;
+            this.ctx.lineWidth = 1;
+            this.ctx.strokeRect(pos.x - tw / 2 - 6, pos.y - 11, tw + 12, 22);
+            this.ctx.fillStyle = color;
+            this.ctx.font = 'bold 13px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText(txt, pos.x, pos.y);
+        }
+
+        const rimTo = this.vertexRimPoint(toPt, fromPt, vr - 2);
+        const rimFrom = this.vertexRimPoint(fromPt, toPt, vr - 2);
+
+        if (drawDirectedArrow) {
+            const tArrow = 0.9;
+            const pt = this.quadBezierPoint(tArrow, p0, p1, p2);
+            this.drawArrow(pt, rimTo, color, lineWidth);
+        } else if (bidirArrows) {
+            const qf = this.quadBezierPoint(0.14, p0, p1, p2);
+            const qt = this.quadBezierPoint(0.86, p0, p1, p2);
+            this.drawArrow(qf, rimFrom, color, lineWidth);
+            this.drawArrow(qt, rimTo, color, lineWidth);
+        }
+
+        return { p0, p1, p2 };
+    }
+
+    /** Индекс ребра в `edges` и направление как в отрисовке (для дуги и slot). */
+    findEdgeLayoutByEndpoints(a, b) {
+        const edges = this.currentGraphData.edges;
+        for (let i = 0; i < edges.length; i++) {
+            const e = edges[i];
+            if (e.from === a && e.to === b) return { edgeIndex: i, from: e.from, to: e.to };
+            if (e.isBidirectional && e.from === b && e.to === a) return { edgeIndex: i, from: e.from, to: e.to };
+        }
+        for (let i = 0; i < edges.length; i++) {
+            const e = edges[i];
+            if (!e.isBidirectional && e.from === b && e.to === a) return { edgeIndex: i, from: e.from, to: e.to };
+        }
+        return null;
+    }
+
+    /** Точка подписи на дуге (как у синего веса ребра). */
+    computeCurvedEdgeLabelAnchor(fromPt, toPt, slot, total) {
+        const vr = InteractiveGraphCanvas.vertexBodyRadius();
+        const dx0 = toPt.x - fromPt.x;
+        const dy0 = toPt.y - fromPt.y;
+        const L0 = Math.hypot(dx0, dy0);
+        if (L0 < 1e-6) return { x: (fromPt.x + toPt.x) / 2, y: (fromPt.y + toPt.y) / 2 };
+
+        const p0 = this.vertexRimPoint(fromPt, toPt, vr);
+        const p2 = this.vertexRimPoint(toPt, fromPt, vr);
+        const dx = p2.x - p0.x;
+        const dy = p2.y - p0.y;
+        const L = Math.hypot(dx, dy);
+        if (L < 1e-6) return { x: (fromPt.x + toPt.x) / 2, y: (fromPt.y + toPt.y) / 2 };
+
+        const mxCent = (fromPt.x + toPt.x) / 2;
+        const myCent = (fromPt.y + toPt.y) / 2;
+        const mx = (p0.x + p2.x) / 2;
+        const my = (p0.y + p2.y) / 2;
+        const centroid = this.currentGraphData
+            ? this.getGraphCentroid(this.currentGraphData.vertices)
+            : { x: mx, y: my };
+        const px = -dy / L;
+        const py = dx / L;
+        const slotIndex = slot - (total - 1) / 2;
+        const baseSep = 56;
+        const extra = Math.min(72, L0 * 0.22);
+        let curve = slotIndex * (baseSep + extra);
+        if (total === 1) {
+            const gcx = centroid.x - mxCent;
+            const gcy = centroid.y - myCent;
+            const dot = gcx * px + gcy * py;
+            const bendAway = (dot >= 0 ? -1 : 1) * Math.max(28, Math.min(48, L0 * 0.18));
+            curve += bendAway;
+        }
+        const p1 = { x: mx + px * curve, y: my + py * curve };
+
+        const tW = total > 1 ? 0.26 + (0.48 * slot) / Math.max(1, total - 1) : 0.5;
+        let pos = this.quadBezierPoint(tW, p0, p1, p2);
+        const tan = this.quadBezierTangent(tW, p0, p1, p2);
+        const perpX = -tan.dy;
+        const perpY = tan.dx;
+        const labelOff = slotIndex * 28;
+        return { x: pos.x + perpX * labelOff, y: pos.y + perpY * labelOff };
+    }
+
+    /** Середина ребра (мировые координаты) для подписи алгоритма. */
+    getAlgorithmLabelPointForEdge(fromIdx, toIdx) {
+        if (!this.currentGraphData) return null;
+        const { vertices, edges, renderStraightEdges } = this.currentGraphData;
+        const A = vertices[fromIdx];
+        const B = vertices[toIdx];
+        if (!A || !B) return null;
+        if (fromIdx === toIdx) return { x: A.x, y: A.y };
+
+        const straight = renderStraightEdges !== false;
+        if (straight) {
+            return { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
+        }
+
+        const layout = this.findEdgeLayoutByEndpoints(fromIdx, toIdx);
+        if (!layout) {
+            return { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
+        }
+        const fromPt = vertices[layout.from];
+        const toPt = vertices[layout.to];
+        const meta = this.prepareEdgeLayoutMetadata(edges);
+        const m = meta[layout.edgeIndex];
+        return this.computeCurvedEdgeLabelAnchor(fromPt, toPt, m.slot, m.total);
+    }
+
     draw() {
         this.camera.x += (this.targetCamera.x - this.camera.x) * 0.1;
         this.camera.y += (this.targetCamera.y - this.camera.y) * 0.1;
@@ -389,10 +763,12 @@ class InteractiveGraphCanvas {
         this.ctx.scale(this.camera.zoom, this.camera.zoom);
         this.drawGrid();
         if (this.currentGraphData) {
-            this.drawHighlightedPathEdges();
             this.drawEdges();
             this.drawMatchingEdges();
-            this.drawNodes();
+            this.drawHighlightedPathEdges();
+            this.drawNodeBodies();
+            this.drawNodeLabels();
+            this.drawAlgorithmEdgeLabels();
         }
         this.ctx.restore();
         if (this.currentGraphData) this.drawMinimap();
@@ -404,48 +780,31 @@ class InteractiveGraphCanvas {
         const { vertices } = this.currentGraphData;
         
         // Отрисовываем каждое ребро паросочетания отдельно
-        this.matchingEdges.forEach(edge => {
+        const meta = this.prepareEdgeLayoutMetadata(this.matchingEdges);
+        const centroid = this.getGraphCentroid(vertices);
+
+        const straight = !this.currentGraphData || this.currentGraphData.renderStraightEdges !== false;
+
+        this.matchingEdges.forEach((edge, idx) => {
             const from = vertices[edge.from];
             const to = vertices[edge.to];
             
             if (!from || !to) return;
-            
-            // Красная линия
-            this.ctx.strokeStyle = '#e74c3c';
-            this.ctx.lineWidth = 4;
+
             this.ctx.shadowColor = 'rgba(231, 76, 60, 0.5)';
             this.ctx.shadowBlur = 8;
-            this.ctx.beginPath();
-            this.ctx.moveTo(from.x, from.y);
-            this.ctx.lineTo(to.x, to.y);
-            this.ctx.stroke();
+
+            const m = meta[idx];
+            if (m.isSelf) {
+                this.drawSelfLoopArc(from, edge.weight, m.slot, m.total, centroid, '#e74c3c', 4, false, true, edge.from);
+            } else if (straight) {
+                this.drawStraightGraphEdge(from, to, edge, '#e74c3c', 4, { forceBidirArrows: true });
+            } else {
+                this.drawCurvedEdgeArc(from, to, edge.weight, m.slot, m.total, '#e74c3c', 4, false, true, true);
+            }
+
             this.ctx.shadowColor = 'transparent';
             this.ctx.shadowBlur = 0;
-            
-            // Стрелки в обе стороны
-            this.drawArrow(from, to, '#e74c3c', 4);
-            this.drawArrow(to, from, '#e74c3c', 4);
-            
-            // Вес ребра
-            if (edge.weight !== 0) {
-                const midX = (from.x + to.x) / 2;
-                const midY = (from.y + to.y) / 2;
-                const weightText = edge.weight.toFixed(1);
-                const textWidth = this.ctx.measureText(weightText).width;
-                
-                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-                this.ctx.fillRect(midX - textWidth / 2 - 6, midY - 11, textWidth + 12, 22);
-                
-                this.ctx.strokeStyle = '#e74c3c';
-                this.ctx.lineWidth = 2;
-                this.ctx.strokeRect(midX - textWidth / 2 - 6, midY - 11, textWidth + 12, 22);
-                
-                this.ctx.fillStyle = '#e74c3c';
-                this.ctx.font = 'bold 13px Arial';
-                this.ctx.textAlign = 'center';
-                this.ctx.textBaseline = 'middle';
-                this.ctx.fillText(weightText, midX, midY);
-            }
         });
     }
     
@@ -487,6 +846,8 @@ class InteractiveGraphCanvas {
     drawHighlightedPathEdges() {
         if (this.highlightedPath.length < 2) return;
         const { vertices } = this.currentGraphData;
+        const centroid = this.getGraphCentroid(vertices);
+        const straight = this.currentGraphData.renderStraightEdges !== false;
         
         for (let i = 0; i < this.highlightedPath.length - 1; i++) {
             const fromVertex = this.highlightedPath[i];
@@ -497,113 +858,83 @@ class InteractiveGraphCanvas {
             
             if (!from || !to) continue;
             
-            // Находим вес ребра из матрицы
             let weight = 0;
             const matrix = window.currentMatrix || this.currentMatrix;
             
-            // Определяем индексы в исходной матрице
             let realFrom = fromVertex;
             let realTo = toVertex;
             
-            // Если это bipartite граф (вершины с n по 2n-1 это правые)
             const n = this.currentGraphData.numVertices / 2;
             if (toVertex >= n) {
-                realTo = toVertex - n; // Приводим к индексу правой колонки
+                realTo = toVertex - n;
             }
             
             if (matrix && matrix[realFrom] && matrix[realFrom][realTo] !== undefined) {
                 weight = matrix[realFrom][realTo];
             }
             
-            // Рисуем красную линию
             this.ctx.strokeStyle = '#e74c3c'; 
             this.ctx.lineWidth = 4;
             this.ctx.shadowColor = 'rgba(231, 76, 60, 0.5)'; 
             this.ctx.shadowBlur = 8;
-            this.ctx.beginPath(); 
-            this.ctx.moveTo(from.x, from.y); 
-            this.ctx.lineTo(to.x, to.y); 
-            this.ctx.stroke();
+
+            if (fromVertex === toVertex) {
+                this.drawSelfLoopArc(from, weight, 0, 1, centroid, '#e74c3c', 4, false, true, fromVertex);
+            } else if (straight) {
+                this.drawStraightGraphEdge(from, to, {
+                    weight,
+                    from: fromVertex,
+                    to: toVertex,
+                    isBidirectional: false
+                }, '#e74c3c', 4, { forceBidirArrows: true });
+            } else {
+                this.drawCurvedEdgeArc(from, to, weight, 0, 1, '#e74c3c', 4, false, true, true);
+            }
+
             this.ctx.shadowColor = 'transparent'; 
             this.ctx.shadowBlur = 0;
-            
-            // Рисуем стрелки в обе стороны
-            this.drawArrow(from, to, '#e74c3c', 4);
-            this.drawArrow(to, from, '#e74c3c', 4);
-            
-            // Отображаем вес
-            if (weight !== 0) {
-                const midX = (from.x + to.x) / 2;
-                const midY = (from.y + to.y) / 2;
-                const weightText = weight.toFixed(1);
-                const textWidth = this.ctx.measureText(weightText).width;
-                
-                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-                this.ctx.fillRect(midX - textWidth / 2 - 6, midY - 11, textWidth + 12, 22);
-                
-                this.ctx.strokeStyle = '#e74c3c';
-                this.ctx.lineWidth = 2;
-                this.ctx.strokeRect(midX - textWidth / 2 - 6, midY - 11, textWidth + 12, 22);
-                
-                this.ctx.fillStyle = '#e74c3c';
-                this.ctx.font = 'bold 13px Arial';
-                this.ctx.textAlign = 'center';
-                this.ctx.textBaseline = 'middle';
-                this.ctx.fillText(weightText, midX, midY);
-            }
         }
     }
     
     drawEdges() {
         if (!this.currentGraphData) return;
         const { edges, vertices } = this.currentGraphData;
+        const meta = this.prepareEdgeLayoutMetadata(edges);
+        const centroid = this.getGraphCentroid(vertices);
+        const straight = this.currentGraphData.renderStraightEdges !== false;
+        const curvedMulti = this.currentGraphData.renderStraightEdges === false;
         
-        edges.forEach(edge => {
+        edges.forEach((edge, idx) => {
             const from = vertices[edge.from], to = vertices[edge.to];
             if (!from || !to) return;
-            
-            // Пропускаем ребра, которые есть в выделенном пути
-            if (this.isEdgeInPath(edge.from, edge.to)) return;
-            
-            this.ctx.strokeStyle = '#667eea'; 
-            this.ctx.lineWidth = 2;
-            this.ctx.beginPath(); 
-            this.ctx.moveTo(from.x, from.y); 
-            this.ctx.lineTo(to.x, to.y); 
-            this.ctx.stroke();
-            
-            if (this.graphType === 'directed') {
-                if (edge.isBidirectional) { 
-                    // Проверяем оба направления
-                    if (!this.isEdgeInPath(edge.from, edge.to)) {
-                        this.drawArrow(from, to, '#667eea', 1);
-                    }
-                    if (!this.isEdgeInPath(edge.to, edge.from)) {
-                        this.drawArrow(to, from, '#667eea', 1);
-                    }
-                } else {
-                    if (!this.isEdgeInPath(edge.from, edge.to)) {
-                        this.drawArrow(from, to, '#667eea', 1);
-                    }
-                }
+
+            const m = meta[idx];
+            const skipForPath =
+                this.isEdgeInPath(edge.from, edge.to) && !(curvedMulti && m.total > 1);
+            if (skipForPath) return;
+
+            if (m.isSelf) {
+                this.drawSelfLoopArc(
+                    from,
+                    edge.weight,
+                    m.slot,
+                    m.total,
+                    centroid,
+                    '#667eea',
+                    4,
+                    this.graphType === 'directed' && !edge.isBidirectional,
+                    edge.isBidirectional,
+                    edge.from
+                );
+                return;
             }
-            
-            // Вес ребра (только если не часть пути)
-            if ((edge.weight !== 1 || edge.isBidirectional) && !this.isEdgeInPath(edge.from, edge.to)) {
-                const mx = (from.x + to.x) / 2, my = (from.y + to.y) / 2;
-                const txt = edge.weight.toFixed(1);
-                const tw = this.ctx.measureText(txt).width;
-                
-                this.ctx.fillStyle = 'rgba(255,255,255,0.95)';
-                this.ctx.fillRect(mx - tw/2 - 6, my - 11, tw + 12, 22);
-                this.ctx.strokeStyle = '#667eea'; 
-                this.ctx.lineWidth = 1;
-                this.ctx.strokeRect(mx - tw/2 - 6, my - 11, tw + 12, 22);
-                this.ctx.fillStyle = '#667eea'; 
-                this.ctx.font = 'bold 13px Arial';
-                this.ctx.textAlign = 'center'; 
-                this.ctx.textBaseline = 'middle';
-                this.ctx.fillText(txt, mx, my);
+
+            if (straight) {
+                this.drawStraightGraphEdge(from, to, edge, '#667eea', 2);
+            } else {
+                const dirArrow = this.graphType === 'directed' && !edge.isBidirectional;
+                const bidirArrows = this.graphType === 'directed' && edge.isBidirectional;
+                this.drawCurvedEdgeArc(from, to, edge.weight, m.slot, m.total, '#667eea', 4, dirArrow, bidirArrows, edge.isBidirectional);
             }
         });
     }
@@ -624,7 +955,7 @@ class InteractiveGraphCanvas {
         this.ctx.fill();
     }
     
-    drawNodes() {
+    drawNodeBodies() {
         if (!this.currentGraphData) return;
         this.currentGraphData.vertices.forEach((v, i) => {
             if (!v) return;
@@ -638,27 +969,60 @@ class InteractiveGraphCanvas {
             this.ctx.fill();
             this.ctx.strokeStyle = 'white'; this.ctx.lineWidth = (hl || ip) ? 4 : 2; this.ctx.stroke();
             this.ctx.shadowColor = 'transparent'; this.ctx.shadowBlur = 0;
-            this.ctx.fillStyle = 'white'; this.ctx.font = 'bold 14px Arial';
+        });
+    }
+
+    drawNodeLabels() {
+        if (!this.currentGraphData) return;
+        this.currentGraphData.vertices.forEach((v, i) => {
+            if (!v) return;
+            const ip = this.highlightedPath.includes(i);
             this.ctx.textAlign = 'center'; this.ctx.textBaseline = 'middle';
             
-            // Отображаем либо название, либо номер вершины
-            let label = i.toString();
-            if (v.label) {
-                label = v.label;
-                // Если есть название, показываем его над вершиной
+            if (v.label && v.labelInside) {
+                this.ctx.fillStyle = 'white';
+                const txt = String(v.label);
+                this.ctx.font = txt.length > 2 ? 'bold 11px Arial' : 'bold 14px Arial';
+                this.ctx.fillText(txt, v.x, v.y);
+            } else if (v.label) {
                 this.ctx.fillStyle = '#2c3e50';
                 this.ctx.font = 'bold 13px Arial';
-                this.ctx.fillText(label, v.x, v.y - 35);
-                
-                // Номер вершины внутри круга
+                this.ctx.fillText(v.label, v.x, v.y - 35);
                 this.ctx.fillStyle = 'white';
                 this.ctx.font = 'bold 16px Arial';
                 this.ctx.fillText(i.toString(), v.x, v.y);
             } else {
-                // Если названия нет, просто номер
+                this.ctx.fillStyle = 'white';
+                this.ctx.font = 'bold 14px Arial';
                 this.ctx.fillText(i.toString(), v.x, v.y);
             }
         });
+    }
+
+    drawAlgorithmEdgeLabels() {
+        if (!this.currentGraphData || !this.algorithmEdgeLabels) return;
+        const color = '#e74c3c';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.font = 'bold 13px Arial';
+        for (const entry of this.algorithmEdgeLabels) {
+            const pt = this.getAlgorithmLabelPointForEdge(entry.from, entry.to);
+            if (!pt) continue;
+            const txt = Number(entry.value).toFixed(1);
+            const tw = this.ctx.measureText(txt).width;
+            this.ctx.fillStyle = 'rgba(255,255,255,0.95)';
+            this.ctx.fillRect(pt.x - tw / 2 - 6, pt.y - 11, tw + 12, 22);
+            this.ctx.strokeStyle = color;
+            this.ctx.lineWidth = 1;
+            this.ctx.strokeRect(pt.x - tw / 2 - 6, pt.y - 11, tw + 12, 22);
+            this.ctx.fillStyle = color;
+            this.ctx.fillText(txt, pt.x, pt.y);
+        }
+    }
+
+    drawNodes() {
+        this.drawNodeBodies();
+        this.drawNodeLabels();
     }
     
     drawMinimap() {
@@ -671,11 +1035,31 @@ class InteractiveGraphCanvas {
         const gw = maxX - minX + 100, gh = maxY - minY + 100;
         const scale = Math.min(180/gw, 130/gh);
         const ox = 100 - (minX+maxX)/2*scale, oy = 75 - (minY+maxY)/2*scale;
+        const straightMini = this.currentGraphData.renderStraightEdges !== false;
         this.currentGraphData.edges.forEach(e => {
             const f = vertices[e.from], t = vertices[e.to];
             if (!f || !t) return;
             this.minimapCtx.strokeStyle = 'rgba(102,126,234,0.3)'; this.minimapCtx.lineWidth = 0.5;
-            this.minimapCtx.beginPath(); this.minimapCtx.moveTo(f.x*scale+ox, f.y*scale+oy); this.minimapCtx.lineTo(t.x*scale+ox, t.y*scale+oy); this.minimapCtx.stroke();
+            const fx = f.x * scale + ox, fy = f.y * scale + oy, tx = t.x * scale + ox, ty = t.y * scale + oy;
+            if (e.from === e.to) {
+                this.minimapCtx.beginPath();
+                this.minimapCtx.arc(fx + 4 * scale, fy - 4 * scale, 5 * scale, 0, Math.PI * 1.4);
+                this.minimapCtx.stroke();
+            } else if (straightMini) {
+                this.minimapCtx.beginPath();
+                this.minimapCtx.moveTo(fx, fy);
+                this.minimapCtx.lineTo(tx, ty);
+                this.minimapCtx.stroke();
+            } else {
+                const mx = (fx + tx) / 2, my = (fy + ty) / 2;
+                const dx = tx - fx, dy = ty - fy;
+                const LL = Math.hypot(dx, dy) || 1;
+                const px = (-dy / LL) * 6 * scale, py = (dx / LL) * 6 * scale;
+                this.minimapCtx.beginPath();
+                this.minimapCtx.moveTo(fx, fy);
+                this.minimapCtx.quadraticCurveTo(mx + px, my + py, tx, ty);
+                this.minimapCtx.stroke();
+            }
         });
         vertices.forEach(v => { if (!v) return; this.minimapCtx.fillStyle = '#667eea'; this.minimapCtx.beginPath(); this.minimapCtx.arc(v.x*scale+ox, v.y*scale+oy, 2, 0, Math.PI*2); this.minimapCtx.fill(); });
         const vx = -this.camera.x/this.camera.zoom*scale + ox, vy = -this.camera.y/this.camera.zoom*scale + oy;

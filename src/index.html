@@ -9,8 +9,7 @@
 <body>
     <div class="controls">
         <div class="control-row">
-            <button onclick="showManualInput()">📝 Ввести граф вручную</button>
-            <button class="success" onclick="loadFromFile()">📁 Загрузить из файла</button>
+            <button class="success" onclick="showCreateGraphMenu()">➕ Создать граф</button>
             <button class="danger" onclick="clearGraph()">🗑️ Очистить</button>
             <button class="warning" onclick="showOptionsMenu()">⚙️ Опции</button>
             <button class="info" onclick="showEditMenu()">✏️ Редактировать граф</button>
@@ -41,11 +40,30 @@
     
     <div id="coordinates">X: 0, Y: 0 | Масштаб: 100%</div>
     
+    <!-- Меню «Создать граф» -->
+    <div id="createGraphMenu" class="popup-menu create-graph-menu" style="display: none;">
+        <h3>Создать граф</h3>
+        <label class="create-graph-option">
+            <input type="checkbox" id="graphCbNonArbitrary">
+            <span>НЕ произвольная нумерация</span>
+        </label>
+        <p class="create-graph-hint">Задайте имена всех вершин — они отображаются внутри кругов вместо номеров.</p>
+        <label class="create-graph-option">
+            <input type="checkbox" id="graphCbMultiMod">
+            <span>Multi mod</span>
+        </label>
+        <p class="create-graph-hint">Первая строка: n коротких имён (до 3 символов) через пробел. Далее m строк «f l v» (начало, конец, вес); вершины 1…n. Петля: одинаковые f и l.</p>
+        <div class="create-graph-actions">
+            <button type="button" class="success" onclick="openGraphInputManual()">📝 Ввести вручную</button>
+            <button type="button" onclick="loadFromFile()">📁 Загрузить из файла</button>
+        </div>
+    </div>
+    
     <!-- Модальное окно ввода матрицы -->
     <div id="inputModal" class="modal">
         <div class="modal-content">
-            <h3>Введите матрицу смежности</h3>
-            <p style="margin-bottom: 10px; color: #7f8c8d;">
+            <h3 id="inputModalTitle">Введите матрицу смежности</h3>
+            <p id="inputModalHelp" style="margin-bottom: 10px; color: #7f8c8d;">
                 Пример квадратной матрицы:<br>
                 0 1.5 0 2.3 1<br>
                 1.5 0 1.0 0 8<br>
@@ -53,6 +71,10 @@
                 2.3 0 1.7 0 4<br>
                 0 0 0 0 0
             </p>
+            <div id="vertexNamesBlock" style="display: none; margin-bottom: 12px;">
+                <label style="display: block; font-weight: 600; color: #2c3e50; margin-bottom: 6px;">Имена вершин (ровно n, через пробел или с новой строки):</label>
+                <textarea id="vertexNamesInput" placeholder="Например: A Б В или по одному в строке" style="width: 100%; height: 72px; min-height: 72px;"></textarea>
+            </div>
             <textarea id="matrixInput" placeholder="Введите матрицу..."></textarea>
             <div class="modal-buttons">
                 <button onclick="closeModal()" style="background: #95a5a6;">Отмена</button>

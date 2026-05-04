@@ -11,6 +11,13 @@ window.currentGraphData = null;
 // graphCanvas будет создан после загрузки DOM
 let graphCanvas;
 
+/** Последние подписи вершин (для повторного buildGraph без явного displayOpts, тот же размер матрицы) */
+let cachedVertexDisplayOpts = null;
+
+function matrixFingerprint(matrix) {
+    return matrix.map((row) => row.join(',')).join('|');
+}
+
 // Функции для работы с меню опций
 function showOptionsMenu() {
     const menu = document.getElementById('optionsMenu');
@@ -144,7 +151,18 @@ async function runShortestPath() {
     }
     
     try {
-        const path = await window.cpp.findShortestPath(start, end);
+        const res = await window.cpp.findShortestPath(start, end);
+        const path =
+            res && typeof res === 'object' && Array.isArray(res.path)
+                ? res.path
+                : Array.isArray(res)
+                  ? res
+                  : [];
+        const vertexDistances =
+            res && typeof res === 'object' && Array.isArray(res.vertexDistances) ? res.vertexDistances : null;
+        const vertexParents =
+            res && typeof res === 'object' && Array.isArray(res.vertexParents) ? res.vertexParents : null;
+        const dijkstraEdgeLabels = buildDijkstraEdgeLabels(vertexDistances, vertexParents, start);
         if (path.length > 0) {
             let totalWeight = 0;
             for (let i = 0; i < path.length - 1; i++) {
@@ -154,12 +172,19 @@ async function runShortestPath() {
                     totalWeight += currentMatrix[from][to];
                 }
             }
-            
+
             showAlgorithmResult(`Кратчайший путь ${start}→${end}: ${path.join(' → ')} | Сумма пути: ${totalWeight.toFixed(2)}`);
-            if (graphCanvas) graphCanvas.highlightPath(path);
+            if (graphCanvas) {
+                graphCanvas.clearHighlights();
+                graphCanvas.highlightPath(path);
+                if (dijkstraEdgeLabels.length) graphCanvas.setAlgorithmEdgeLabels(dijkstraEdgeLabels);
+            }
         } else {
             showAlgorithmResult('Путь не найден');
-            if (graphCanvas) graphCanvas.clearHighlights();
+            if (graphCanvas) {
+                graphCanvas.clearHighlights();
+                if (dijkstraEdgeLabels.length) graphCanvas.setAlgorithmEdgeLabels(dijkstraEdgeLabels);
+            }
         }
     } catch (e) {
         showStatus('Ошибка: ' + e.message, true);
@@ -232,7 +257,55 @@ function setGraphType(type) {
     }
 }
 
-function showManualInput() {
+function showCreateGraphMenu() {
+    const menu = document.getElementById('createGraphMenu');
+    menu.style.display = 'block';
+    const rect = menu.getBoundingClientRect();
+    menu.style.left = (window.innerWidth - rect.width) / 2 + 'px';
+    menu.style.top = (window.innerHeight - rect.height) / 2 + 'px';
+    setTimeout(() => {
+        document.addEventListener('click', closeCreateGraphMenu);
+    }, 100);
+}
+
+function closeCreateGraphMenu(e) {
+    const menu = document.getElementById('createGraphMenu');
+    if (!e) {
+        menu.style.display = 'none';
+        document.removeEventListener('click', closeCreateGraphMenu);
+        return;
+    }
+    if (!menu.contains(e.target)) {
+        menu.style.display = 'none';
+        document.removeEventListener('click', closeCreateGraphMenu);
+    }
+}
+
+function updateInputModalForOptions() {
+    const multi = document.getElementById('graphCbMultiMod').checked;
+    const nonArb = document.getElementById('graphCbNonArbitrary').checked;
+    const title = document.getElementById('inputModalTitle');
+    const help = document.getElementById('inputModalHelp');
+    const namesBlock = document.getElementById('vertexNamesBlock');
+    if (multi) {
+        title.textContent = 'Формат Multi mod';
+        help.innerHTML =
+            'Строка 1: ровно <strong>n</strong> имён вершин (каждое не длиннее 3 символов), через пробел.<br>' +
+            'Далее <strong>m</strong> строк: три числа <code>f l v</code> — ребро из вершины <code>f</code> в вершину <code>l</code> с весом <code>v</code> (вершины <strong>1…n</strong>).<br>' +
+            'Петля: одинаковые f и l, например <code>3 3 5</code>.';
+        namesBlock.style.display = 'none';
+    } else {
+        title.textContent = 'Введите матрицу смежности';
+        help.innerHTML =
+            'Квадратная матрица весов. Пример:<br>' +
+            '0 1.5 0 2.3 1<br>1.5 0 1.0 0 8<br>0 1.0 0 1.7 7<br>2.3 0 1.7 0 4<br>0 0 0 0 0';
+        namesBlock.style.display = nonArb ? 'block' : 'none';
+    }
+}
+
+function openGraphInputManual() {
+    closeCreateGraphMenu();
+    updateInputModalForOptions();
     document.getElementById('inputModal').classList.add('active');
     document.getElementById('matrixInput').focus();
 }
@@ -241,41 +314,124 @@ function closeModal() {
     document.getElementById('inputModal').classList.remove('active');
 }
 
+function parseStandardAdjacencyMatrixOnly(content) {
+    const lines = content.trim().split('\n');
+    const matrix = [];
+    for (let line of lines) {
+        line = line.trim();
+        if (line) {
+            const row = line.split(/\s+/).map(Number);
+            if (row.some(isNaN)) throw new Error('Все значения матрицы должны быть числами');
+            matrix.push(row);
+        }
+    }
+    const n = matrix.length;
+    for (let i = 0; i < n; i++) {
+        if (matrix[i].length !== n) throw new Error('Матрица должна быть квадратной');
+    }
+    return matrix;
+}
+
+function parseVertexNamesList(text, n) {
+    const parts = text.trim().split(/[\s,\n\r]+/).filter(Boolean);
+    if (parts.length !== n) {
+        throw new Error(`Для режима «НЕ произвольная нумерация» нужно ровно ${n} имён вершин, указано: ${parts.length}`);
+    }
+    for (const p of parts) {
+        if (!p.length) throw new Error('Пустое имя вершины не допускается');
+    }
+    return parts;
+}
+
+function parseMultiMod(content) {
+    const lines = content
+        .trim()
+        .split(/\n/)
+        .map((l) => l.trim())
+        .filter((l) => l.length > 0);
+    if (lines.length < 2) {
+        throw new Error('Multi mod: нужна строка из n имён и хотя бы одна строка рёбер (f l v)');
+    }
+    const nameTokens = lines[0].split(/\s+/).filter(Boolean);
+    const n = nameTokens.length;
+    if (n === 0) throw new Error('Первая строка: укажите имена вершин через пробел');
+    for (const t of nameTokens) {
+        if (t.length > 3) {
+            throw new Error(
+                `Неправильное имя «${t}»: имя не может быть длиннее 3 символов`
+            );
+        }
+    }
+    const matrix = Array.from({ length: n }, () => Array(n).fill(0));
+    const explicitEdges = [];
+    for (let li = 1; li < lines.length; li++) {
+        const parts = lines[li].split(/\s+/).filter(Boolean);
+        if (parts.length < 3) {
+            throw new Error(`Строка ${li + 1}: ожидаются три числа f l v через пробел`);
+        }
+        const f = parseInt(parts[0], 10);
+        const l = parseInt(parts[1], 10);
+        const v = parseFloat(parts[2]);
+        if (Number.isNaN(f) || Number.isNaN(l) || Number.isNaN(v)) {
+            throw new Error(`Строка ${li + 1}: f, l и v должны быть числами`);
+        }
+        if (f < 1 || f > n || l < 1 || l > n) {
+            throw new Error(`Строка ${li + 1}: номера вершин должны быть от 1 до ${n}`);
+        }
+        const fi = f - 1;
+        const li0 = l - 1;
+        matrix[fi][li0] += v;
+        explicitEdges.push({ from: fi, to: li0, weight: v });
+    }
+    return { matrix, vertexNames: nameTokens, explicitEdges };
+}
+
+function parseAndBuildGraphFromContent(content) {
+    const multi = document.getElementById('graphCbMultiMod').checked;
+    const nonArb = document.getElementById('graphCbNonArbitrary').checked;
+    const namesText = document.getElementById('vertexNamesInput').value;
+
+    if (multi) {
+        const { matrix, vertexNames, explicitEdges } = parseMultiMod(content);
+        buildGraph(matrix, { names: vertexNames, labelInside: true, explicitEdges });
+        return;
+    }
+
+    const matrix = parseStandardAdjacencyMatrixOnly(content);
+    const n = matrix.length;
+    let displayOpts = null;
+    if (nonArb) {
+        const names = parseVertexNamesList(namesText, n);
+        displayOpts = { names, labelInside: true };
+    }
+    buildGraph(matrix, displayOpts);
+}
+
 async function loadFromFile() {
     try {
         showStatus('Открытие файла...');
         const result = await window.electron.openFile();
-        if (result) {
-            document.getElementById('matrixInput').value = result.content;
-            parseAndBuildGraph(result.content);
-        }
-    } catch (e) {
-        showStatus('Ошибка: ' + e.message, true);
-    }
-}
+        if (!result) return;
+        closeCreateGraphMenu();
+        document.getElementById('matrixInput').value = result.content;
+        const multi = document.getElementById('graphCbMultiMod').checked;
+        const nonArb = document.getElementById('graphCbNonArbitrary').checked;
 
-function parseAndBuildGraph(content) {
-    try {
-        const lines = content.trim().split('\n');
-        const matrix = [];
-        
-        for (let line of lines) {
-            line = line.trim();
-            if (line) {
-                const row = line.split(/\s+/).map(Number);
-                if (row.some(isNaN)) throw new Error('Все значения должны быть числами');
-                matrix.push(row);
-            }
+        if (nonArb && !multi) {
+            updateInputModalForOptions();
+            document.getElementById('inputModal').classList.add('active');
+            showStatus('Укажите имена всех вершин в отдельном поле и нажмите «Построить граф»');
+            return;
         }
-        
-        const n = matrix.length;
-        for (let i = 0; i < n; i++) {
-            if (matrix[i].length !== n) throw new Error('Матрица должна быть квадратной');
+
+        try {
+            parseAndBuildGraphFromContent(result.content);
+            showStatus('Граф построен из файла');
+        } catch (e) {
+            updateInputModalForOptions();
+            document.getElementById('inputModal').classList.add('active');
+            showStatus('Проверьте данные в окне и нажмите «Построить граф»: ' + e.message, true);
         }
-        
-        currentMatrix = matrix;
-        buildGraph(matrix);
-        
     } catch (e) {
         showStatus('Ошибка: ' + e.message, true);
     }
@@ -283,15 +439,57 @@ function parseAndBuildGraph(content) {
 
 async function submitMatrix() {
     const input = document.getElementById('matrixInput').value;
-    if (input.trim()) {
-        parseAndBuildGraph(input);
+    if (!input.trim()) return;
+    try {
+        parseAndBuildGraphFromContent(input);
         closeModal();
+    } catch (e) {
+        showStatus('Ошибка: ' + e.message, true);
     }
 }
 
-async function buildGraph(matrix) {
+async function buildGraph(matrix, displayOpts) {
     try {
         showStatus('Построение графа...');
+
+        let opts = displayOpts;
+
+        if (opts && opts.names && opts.names.length === matrix.length) {
+            cachedVertexDisplayOpts = {
+                names: [...opts.names],
+                labelInside: !!opts.labelInside,
+                explicitEdges: opts.explicitEdges
+                    ? opts.explicitEdges.map((e) => ({ from: e.from, to: e.to, weight: e.weight }))
+                    : null,
+                fingerprint: matrixFingerprint(matrix),
+                renderStraightEdges: !(opts.explicitEdges && opts.explicitEdges.length > 0)
+            };
+        } else if (
+            !opts &&
+            cachedVertexDisplayOpts &&
+            cachedVertexDisplayOpts.names.length === matrix.length &&
+            cachedVertexDisplayOpts.fingerprint === matrixFingerprint(matrix)
+        ) {
+            opts = {
+                names: [...cachedVertexDisplayOpts.names],
+                labelInside: !!cachedVertexDisplayOpts.labelInside,
+                explicitEdges: cachedVertexDisplayOpts.explicitEdges
+                    ? cachedVertexDisplayOpts.explicitEdges.map((e) => ({ ...e }))
+                    : null,
+                renderStraightEdges:
+                    cachedVertexDisplayOpts.renderStraightEdges !== undefined
+                        ? cachedVertexDisplayOpts.renderStraightEdges
+                        : !cachedVertexDisplayOpts.explicitEdges?.length
+            };
+        } else if (!opts && cachedVertexDisplayOpts && cachedVertexDisplayOpts.names.length !== matrix.length) {
+            cachedVertexDisplayOpts = null;
+        } else if (
+            !opts &&
+            cachedVertexDisplayOpts &&
+            cachedVertexDisplayOpts.fingerprint !== matrixFingerprint(matrix)
+        ) {
+            cachedVertexDisplayOpts = null;
+        }
         
         let processedMatrix = matrix;
         if (graphCanvas && graphCanvas.graphType === 'undirected') {
@@ -306,6 +504,30 @@ async function buildGraph(matrix) {
         
         window.currentMatrix = matrix;
         window.currentGraphData = graphData;
+
+        let multiModRendering = false;
+        if (opts && Array.isArray(opts.explicitEdges) && opts.explicitEdges.length > 0) {
+            graphData.edges = opts.explicitEdges.map((e) => ({
+                from: e.from,
+                to: e.to,
+                weight: e.weight,
+                isBidirectional: false
+            }));
+            multiModRendering = true;
+        }
+        graphData.renderStraightEdges = !multiModRendering;
+
+        if (opts && opts.names && opts.names.length === graphData.numVertices) {
+            for (let i = 0; i < graphData.numVertices; i++) {
+                const v = graphData.vertices[i];
+                graphData.vertices[i] = {
+                    x: v.x,
+                    y: v.y,
+                    label: opts.names[i],
+                    labelInside: !!opts.labelInside
+                };
+            }
+        }
         
         if (graphCanvas) graphCanvas.setGraphData(graphData, matrix);
         showStatus(`Граф: ${graphData.numVertices} вершин, ${graphData.edges.length} рёбер`);
@@ -332,8 +554,11 @@ function clearGraph() {
     currentMatrix = null;
     window.currentMatrix = null;
     window.currentGraphData = null;
+    cachedVertexDisplayOpts = null;
     if (graphCanvas) graphCanvas.setGraphData(null, null);
     document.getElementById('matrixInput').value = '';
+    const vn = document.getElementById('vertexNamesInput');
+    if (vn) vn.value = '';
     document.getElementById('algorithmResult').style.display = 'none';
     showStatus('Граф очищен');
 }
@@ -383,6 +608,36 @@ async function findEulerianCycleGraph() {
     }
 }
 
+/** Подписи на рёбрах тура: накопленная стоимость до конца ребра (ветви и границы / TSP). */
+function computeTspEdgeLabels(path, matrix) {
+    const labels = [];
+    if (!path || path.length < 2 || !matrix) return labels;
+    let acc = 0;
+    for (let i = 0; i < path.length - 1; i++) {
+        const a = path[i];
+        const b = path[i + 1];
+        const w = matrix[a] && matrix[a][b] !== undefined ? matrix[a][b] : 0;
+        acc += w;
+        labels.push({ from: a, to: b, value: acc });
+    }
+    return labels;
+}
+
+/** Подписи на рёбрах дерева кратчайших путей от start: на ребре parent→i — расстояние dist[i]. */
+function buildDijkstraEdgeLabels(vertexDistances, vertexParents, start) {
+    const labels = [];
+    if (!vertexDistances || !vertexParents) return labels;
+    for (let i = 0; i < vertexDistances.length; i++) {
+        if (i === start) continue;
+        const d = vertexDistances[i];
+        if (d === null || d === undefined || !Number.isFinite(Number(d))) continue;
+        const p = vertexParents[i];
+        if (p === null || p === undefined || p < 0) continue;
+        labels.push({ from: p, to: i, value: Number(d) });
+    }
+    return labels;
+}
+
 async function solveTSPGraph() {
     closeOptionsMenu();
     
@@ -394,7 +649,13 @@ async function solveTSPGraph() {
         
         if (result.path.length > 0) {
             showAlgorithmResult(`Оптимальный маршрут: ${result.path.join(' → ')} | Стоимость: ${result.cost.toFixed(2)}`);
-            if (graphCanvas) graphCanvas.highlightPath(result.path);
+            if (graphCanvas && currentMatrix) {
+                graphCanvas.clearHighlights();
+                graphCanvas.highlightPath(result.path);
+                graphCanvas.setAlgorithmEdgeLabels(computeTspEdgeLabels(result.path, currentMatrix));
+            } else if (graphCanvas) {
+                graphCanvas.highlightPath(result.path);
+            }
         } else {
             showAlgorithmResult('Не удалось найти решение TSP');
         }
@@ -783,26 +1044,31 @@ function addEdge() {
         showStatus('Нельзя добавить петлю', true);
         return;
     }
-    
-    if (currentMatrix[from][to] !== 0) {
-        showStatus('Ребро уже существует', true);
-        return;
-    }
-    
+
+    const hadEdge = currentMatrix[from][to] !== 0;
+
     currentMatrix[from][to] = weight;
-    
+
     if (bidirectional || (graphCanvas && graphCanvas.graphType === 'undirected')) {
         currentMatrix[to][from] = weight;
     }
-    
+
     buildGraph(currentMatrix);
-    
+
     closeSubmenu('addEdgeMenu');
-    
-    if (bidirectional) {
-        showStatus(`Двустороннее ребро ${from}↔${to} (вес: ${weight}) добавлено`);
+
+    if (bidirectional || (graphCanvas && graphCanvas.graphType === 'undirected')) {
+        showStatus(
+            hadEdge
+                ? `Вес ребра ${from}↔${to} обновлён: ${weight}`
+                : `Добавлено ребро ${from}↔${to} (вес ${weight})`
+        );
     } else {
-        showStatus(`Ребро ${from}→${to} (вес: ${weight}) добавлено`);
+        showStatus(
+            hadEdge
+                ? `Вес ребра ${from}→${to} обновлён: ${weight}`
+                : `Добавлено ребро ${from}→${to} (вес ${weight})`
+        );
     }
 }
 
@@ -827,6 +1093,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Обработчики для popup меню
     document.getElementById('optionsMenu').addEventListener('click', (e) => e.stopPropagation());
+    document.getElementById('createGraphMenu').addEventListener('click', (e) => e.stopPropagation());
     document.getElementById('editMenu').addEventListener('click', (e) => e.stopPropagation());
     document.getElementById('traversalSubmenu').addEventListener('click', (e) => e.stopPropagation());
     document.getElementById('shortestPathMenu').addEventListener('click', (e) => e.stopPropagation());

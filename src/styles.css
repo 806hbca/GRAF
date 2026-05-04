@@ -220,6 +220,51 @@ canvas {
     padding: 20px;
 }
 
+.create-graph-menu {
+    max-width: 420px;
+}
+
+.create-graph-menu .create-graph-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 12px 0 6px;
+    cursor: pointer;
+    color: #2c3e50;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.create-graph-menu .create-graph-option input {
+    margin-top: 3px;
+}
+
+.create-graph-menu .create-graph-hint {
+    font-size: 12px;
+    color: #7f8c8d;
+    line-height: 1.4;
+    margin: 0 0 8px 0;
+    padding-left: 26px;
+}
+
+.create-graph-menu .create-graph-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.create-graph-menu .create-graph-actions button {
+    width: 100%;
+    white-space: normal;
+}
+
+#vertexNamesBlock textarea {
+    height: 80px !important;
+    min-height: 72px !important;
+    max-height: 160px;
+}
+
 .popup-menu h3 {
     margin-bottom: 15px;
     color: #667eea;
