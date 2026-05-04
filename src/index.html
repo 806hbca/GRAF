@@ -52,7 +52,7 @@
             <input type="checkbox" id="graphCbMultiMod">
             <span>Multi mod</span>
         </label>
-        <p class="create-graph-hint">Первая строка: n коротких имён (до 3 символов) через пробел. Далее m строк «f l v» (начало, конец, вес); вершины 1…n. Петля: одинаковые f и l.</p>
+        <p class="create-graph-hint">Первая строка: n коротких имён (до 3 символов) через пробел. Далее m строк «f l v» (начало, конец, вес); вершины 1…n. Петля: одинаковые f и l. Для Дейкстры, TSP и др. кратные дуги (одинаковые f,l) в матрице сводятся к минимальному v; на экране рёбра по-прежнему отдельные.</p>
         <div class="create-graph-actions">
             <button type="button" class="success" onclick="openGraphInputManual()">📝 Ввести вручную</button>
             <button type="button" onclick="loadFromFile()">📁 Загрузить из файла</button>

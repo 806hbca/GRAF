@@ -321,7 +321,8 @@ function updateInputModalForOptions() {
         help.innerHTML =
             'Строка 1: ровно <strong>n</strong> имён вершин (каждое не длиннее 3 символов), через пробел.<br>' +
             'Далее <strong>m</strong> строк: три числа <code>f l v</code> — ребро из вершины <code>f</code> в вершину <code>l</code> с весом <code>v</code> (вершины <strong>1…n</strong>).<br>' +
-            'Петля: одинаковые f и l, например <code>3 3 5</code>.';
+            'Петля: одинаковые f и l, например <code>3 3 5</code>.<br>' +
+            '<em>Для алгоритмов в «Опции» несколько дуг с одной парой (f,l) дают в матрице один вес — <strong>минимум</strong> по v; на холсте кратные рёбра остаются отдельными.</em>';
         namesBlock.style.display = 'none';
     } else {
         title.textContent = 'Введите матрицу смежности';
@@ -372,6 +373,14 @@ function parseVertexNamesList(text, n) {
     return parts;
 }
 
+/**
+ * Multi mod: список дуг «f l v» (1-based). На холсте — все explicitEdges.
+ * Матрица для аддона (Дейкстра, TSP, MST, …): на каждую ориентированную пару (i,j) — минимум v по всем дугам
+ * с этой парой (один шаг i→j = одна дуга). Петли (f===l): то же — минимум по всем петлям на вершине.
+ *
+ * Ручная проверка: две строки «1 2 1» и «1 2 100» → matrix[0][1] === 1 (не 101).
+ * Нулевой вес: первая дуга 0, вторая 5 → min(0,5)=0 (флаг hasEdge, не «ещё нет ребра»).
+ */
 function parseMultiMod(content) {
     const lines = content
         .trim()
@@ -392,6 +401,7 @@ function parseMultiMod(content) {
         }
     }
     const matrix = Array.from({ length: n }, () => Array(n).fill(0));
+    const hasEdge = Array.from({ length: n }, () => Array(n).fill(false));
     const explicitEdges = [];
     for (let li = 1; li < lines.length; li++) {
         const parts = lines[li].split(/\s+/).filter(Boolean);
@@ -409,7 +419,12 @@ function parseMultiMod(content) {
         }
         const fi = f - 1;
         const li0 = l - 1;
-        matrix[fi][li0] += v;
+        if (!hasEdge[fi][li0]) {
+            matrix[fi][li0] = v;
+            hasEdge[fi][li0] = true;
+        } else {
+            matrix[fi][li0] = Math.min(matrix[fi][li0], v);
+        }
         explicitEdges.push({ from: fi, to: li0, weight: v });
     }
     return { matrix, vertexNames: nameTokens, explicitEdges };
