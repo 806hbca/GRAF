@@ -9,6 +9,8 @@ class InteractiveGraphCanvas {
         this.minimapCtx = this.minimapCanvas.getContext('2d');
         this.minimapContainer = document.getElementById('minimap');
         this.matchingEdges = null;
+        /** @type {{from:number,to:number,lineWidth:number,color:string,label:string}[]|null} */
+        this.transportOverlayEdges = null;
         this.camera = { x: 0, y: 0, zoom: 1 };
         this.targetCamera = { x: 0, y: 0, zoom: 1 };
         
@@ -266,8 +268,8 @@ class InteractiveGraphCanvas {
             this.shiftPressed = true;
         }
         
-        // Shift + A: добавить вершину
-        if ((e.key === 'a' || e.key === 'A') && e.shiftKey) {
+        // Ctrl + Shift + A: добавить вершину
+        if ((e.key === 'a' || e.key === 'A') && e.ctrlKey && e.shiftKey) {
             e.preventDefault();
             e.stopPropagation();
             this.addVertexAtCenter();
@@ -368,7 +370,16 @@ class InteractiveGraphCanvas {
         this.highlightedVertices = [];
         this.highlightedPath = [];
         this.matchingEdges = null;
+        this.transportOverlayEdges = null;
         this.algorithmEdgeLabels = null;
+    }
+
+    /**
+     * Рёбра транспортной задачи: толщина по x_ij, цвет по c_ij, подпись на ребре.
+     * @param {{from:number,to:number,lineWidth:number,color:string,label:string}[]|null} edges
+     */
+    setTransportOverlayEdges(edges) {
+        this.transportOverlayEdges = edges && edges.length ? edges : null;
     }
     highlightVertices(v) {
         this.highlightedVertices = v;
@@ -764,6 +775,7 @@ class InteractiveGraphCanvas {
         this.drawGrid();
         if (this.currentGraphData) {
             this.drawEdges();
+            this.drawTransportOverlayEdges();
             this.drawMatchingEdges();
             this.drawHighlightedPathEdges();
             this.drawNodeBodies();
@@ -772,6 +784,47 @@ class InteractiveGraphCanvas {
         }
         this.ctx.restore();
         if (this.currentGraphData) this.drawMinimap();
+    }
+
+    drawTransportOverlayEdges() {
+        if (!this.transportOverlayEdges || !this.transportOverlayEdges.length || !this.currentGraphData) return;
+        const { vertices } = this.currentGraphData;
+        this.ctx.lineCap = 'round';
+        this.ctx.lineJoin = 'round';
+        for (const ed of this.transportOverlayEdges) {
+            const from = vertices[ed.from];
+            const to = vertices[ed.to];
+            if (!from || !to) continue;
+            this.ctx.strokeStyle = ed.color || '#16a085';
+            this.ctx.lineWidth = ed.lineWidth || 3;
+            this.ctx.globalAlpha = 0.92;
+            this.ctx.beginPath();
+            this.ctx.moveTo(from.x, from.y);
+            this.ctx.lineTo(to.x, to.y);
+            this.ctx.stroke();
+            this.ctx.globalAlpha = 1;
+            if (ed.label) {
+                const mx = (from.x + to.x) / 2;
+                const my = (from.y + to.y) / 2;
+                const lines = String(ed.label).split('\n');
+                this.ctx.font = 'bold 11px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                const lh = 13;
+                const startY = my - ((lines.length - 1) * lh) / 2;
+                lines.forEach((line, idx) => {
+                    const y = startY + idx * lh;
+                    const tw = this.ctx.measureText(line).width;
+                    this.ctx.fillStyle = 'rgba(255,255,255,0.96)';
+                    this.ctx.fillRect(mx - tw / 2 - 5, y - 8, tw + 10, 16);
+                    this.ctx.strokeStyle = ed.color || '#16a085';
+                    this.ctx.lineWidth = 1;
+                    this.ctx.strokeRect(mx - tw / 2 - 5, y - 8, tw + 10, 16);
+                    this.ctx.fillStyle = '#2c3e50';
+                    this.ctx.fillText(line, mx, y);
+                });
+            }
+        }
     }
 
     drawMatchingEdges() {
@@ -979,7 +1032,15 @@ class InteractiveGraphCanvas {
             const ip = this.highlightedPath.includes(i);
             this.ctx.textAlign = 'center'; this.ctx.textBaseline = 'middle';
             
-            if (v.label && v.labelInside) {
+            if (v.labelLines && v.labelLines.length) {
+                this.ctx.fillStyle = 'white';
+                const lh = v.labelLines.length > 2 ? 10 : 11;
+                const off = -((v.labelLines.length - 1) * lh) / 2;
+                v.labelLines.forEach((line, idx) => {
+                    this.ctx.font = idx === 0 ? 'bold 12px Arial' : 'bold 10px Arial';
+                    this.ctx.fillText(String(line), v.x, v.y + off + idx * lh);
+                });
+            } else if (v.label && v.labelInside) {
                 this.ctx.fillStyle = 'white';
                 const txt = String(v.label);
                 this.ctx.font = txt.length > 2 ? 'bold 11px Arial' : 'bold 14px Arial';

@@ -159,6 +159,16 @@
             </div>
         </div>
 
+        <div class="option-category">Транспортная задача</div>
+
+        <div class="option-item" onclick="showTransportProblemModal()">
+            <div class="option-icon">🚚</div>
+            <div class="option-info">
+                <div class="option-title">Решение транспортной задачи</div>
+                <div class="option-desc">Ввод матрицы тарифов, запасов и спроса; оптимальный план на двудольном графе</div>
+            </div>
+        </div>
+
         <div class="option-category">Задача о назначениях</div>
 
         <div class="option-item" onclick="solveHungarian()">
@@ -326,6 +336,24 @@
         <button onclick="closeSubmenu('deleteEdgeMenu')" style="width: 100%; margin-top: 10px; background: #95a5a6;">Отмена</button>
     </div>
     
+    <div id="transportProblemModal" class="modal">
+        <div class="modal-content" style="max-width: 560px;">
+            <h3>Транспортная задача (минимум затрат)</h3>
+            <p style="color: #7f8c8d; margin-bottom: 10px; line-height: 1.45; font-size: 13px;">
+                <strong>Строка 1:</strong> <code>m n</code> — число пунктов отправления и назначения.<br>
+                Далее <strong>m</strong> строк по <strong>n</strong> чисел — матрица тарифов <code>c<sub>ij</sub></code>.<br>
+                Затем одна строка: <strong>m</strong> запасов <code>a<sub>i</sub></code>, и одна строка: <strong>n</strong> спросов <code>b<sub>j</sub></code>.<br>
+                Строки, начинающиеся с <code>#</code>, игнорируются. При Σa ≠ Σb добавляется фиктивный пункт с нулевыми тарифами.
+            </p>
+            <textarea id="transportProblemInput" style="width: 100%; height: 220px; font-family: 'Consolas','Courier New',monospace; font-size: 12px;" spellcheck="false"></textarea>
+            <div class="modal-buttons" style="margin-top: 12px; flex-wrap: wrap; gap: 8px;">
+                <button type="button" onclick="fillTransportExample()" style="background: #3498db;">Пример (как в учебниках)</button>
+                <button type="button" onclick="closeTransportProblemModal()" style="background: #95a5a6;">Отмена</button>
+                <button type="button" onclick="runTransportProblemSolve()" class="success">Построить граф и решить</button>
+            </div>
+        </div>
+    </div>
+
     <div id="hungarianModeModal" class="modal">
         <div class="modal-content" style="max-width: 440px;">
             <h3>Задача о назначениях</h3>
@@ -377,6 +405,7 @@
             </div>
         </div>
     </div>
+    <script src="transport-solver.js"></script>
     <!-- Сначала загружаем app.js, где объявлены глобальные переменные -->
     <script src="app.js"></script>
     <!-- Потом загружаем graph-canvas.js, который их использует -->

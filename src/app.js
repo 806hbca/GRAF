@@ -14,6 +14,26 @@ let graphCanvas;
 /** Последние подписи вершин (для повторного buildGraph без явного displayOpts, тот же размер матрицы) */
 let cachedVertexDisplayOpts = null;
 
+/** Граф загружен в формате Multi mod (список рёбер; матрица — суммарные веса) */
+window.graphBuiltFromMultiMod = false;
+
+function isMultiModGraphActive() {
+    return !!window.graphBuiltFromMultiMod;
+}
+
+/**
+ * @param {string} optionTitle — короткое название опции для сообщения
+ * @returns {true} если нужно прервать действие
+ */
+function notifyIfMultiModBlocks(optionTitle) {
+    if (!isMultiModGraphActive()) return false;
+    showStatus(
+        `«${optionTitle}» недоступна для графа из режима Multi mod: алгоритмы в «Опции» используют только матрицу смежности (одно число на пару вершин), а не отдельные параллельные рёбра из списка. Постройте граф без галочки Multi mod или нажмите «Очистить».`,
+        true
+    );
+    return true;
+}
+
 function matrixFingerprint(matrix) {
     return matrix.map((row) => row.join(',')).join('|');
 }
@@ -49,17 +69,19 @@ function closeOptionsMenu(e) {
 
 // Подменю для обхода графа
 function showTraversalSubmenu(type) {
+    const guardTitle = type === 'bfs' ? 'BFS (поиск в ширину)' : 'DFS (поиск в глубину)';
+    if (notifyIfMultiModBlocks(guardTitle)) return;
     closeOptionsMenu();
     
     selectedTraversalType = type;
     
     const menu = document.getElementById('traversalSubmenu');
-    const title = document.getElementById('traversalSubmenuTitle');
+    const titleEl = document.getElementById('traversalSubmenuTitle');
     
     if (type === 'bfs') {
-        title.textContent = 'BFS - Поиск в ширину';
+        titleEl.textContent = 'BFS - Поиск в ширину';
     } else {
-        title.textContent = 'DFS - Поиск в глубину';
+        titleEl.textContent = 'DFS - Поиск в глубину';
     }
     
     menu.style.display = 'block';
@@ -87,6 +109,8 @@ async function runTraversal() {
     const menu = document.getElementById('traversalSubmenu');
     menu.style.display = 'none';
     document.removeEventListener('click', closeTraversalSubmenu);
+
+    if (notifyIfMultiModBlocks(selectedTraversalType === 'bfs' ? 'BFS' : 'DFS')) return;
     
     if (!currentGraphData) return showStatus('Сначала постройте граф', true);
     const startVertex = parseInt(document.getElementById('traversalStartVertex').value);
@@ -112,6 +136,7 @@ async function runTraversal() {
 
 // Подменю для кратчайшего пути
 function showShortestPathMenu() {
+    if (notifyIfMultiModBlocks('Кратчайший путь (Дейкстра)')) return;
     closeOptionsMenu();
     
     const menu = document.getElementById('shortestPathMenu');
@@ -137,6 +162,8 @@ function closeShortestPathMenu(e) {
 async function runShortestPath() {
     const menu = document.getElementById('shortestPathMenu');
     menu.style.display = 'none';
+
+    if (notifyIfMultiModBlocks('Кратчайший путь (Дейкстра)')) return;
     
     if (!currentGraphData) return showStatus('Сначала постройте граф', true);
     const start = parseInt(document.getElementById('spStartVertex').value);
@@ -193,6 +220,8 @@ async function runShortestPath() {
 
 // MST алгоритмы
 async function runMSTAlgorithm(type) {
+    const title = type === 'kruskal' ? 'MST (Краскал)' : 'MST (Прим)';
+    if (notifyIfMultiModBlocks(title)) return;
     closeOptionsMenu();
     
     if (!currentGraphData) return showStatus('Сначала постройте граф', true);
@@ -451,6 +480,7 @@ async function submitMatrix() {
 async function buildGraph(matrix, displayOpts) {
     try {
         showStatus('Построение графа...');
+        window.graphBuiltFromMultiMod = false;
 
         let opts = displayOpts;
 
@@ -531,12 +561,19 @@ async function buildGraph(matrix, displayOpts) {
         
         if (graphCanvas) graphCanvas.setGraphData(graphData, matrix);
         showStatus(`Граф: ${graphData.numVertices} вершин, ${graphData.edges.length} рёбер`);
+
+        window.graphBuiltFromMultiMod = !!(
+            opts &&
+            Array.isArray(opts.explicitEdges) &&
+            opts.explicitEdges.length > 0
+        );
     } catch (e) {
         showStatus('Ошибка: ' + e.message, true);
     }
 }
 
 async function checkConnectivity() {
+    if (notifyIfMultiModBlocks('Проверить связность')) return;
     closeOptionsMenu();
     
     if (!currentGraphData) return showStatus('Сначала постройте граф', true);
@@ -555,6 +592,7 @@ function clearGraph() {
     window.currentMatrix = null;
     window.currentGraphData = null;
     cachedVertexDisplayOpts = null;
+    window.graphBuiltFromMultiMod = false;
     if (graphCanvas) graphCanvas.setGraphData(null, null);
     document.getElementById('matrixInput').value = '';
     const vn = document.getElementById('vertexNamesInput');
@@ -578,6 +616,7 @@ function showStatus(message, isError = false) {
 }
 
 async function checkEulerianGraph() {
+    if (notifyIfMultiModBlocks('Проверить на эйлеровость')) return;
     closeOptionsMenu();
     
     if (!currentGraphData) return showStatus('Сначала постройте граф', true);
@@ -591,6 +630,7 @@ async function checkEulerianGraph() {
 }
 
 async function findEulerianCycleGraph() {
+    if (notifyIfMultiModBlocks('Найти эйлеров цикл')) return;
     closeOptionsMenu();
     
     if (!currentGraphData) return showStatus('Сначала постройте граф', true);
@@ -639,6 +679,7 @@ function buildDijkstraEdgeLabels(vertexDistances, vertexParents, start) {
 }
 
 async function solveTSPGraph() {
+    if (notifyIfMultiModBlocks('Задача коммивояжера')) return;
     closeOptionsMenu();
     
     if (!currentGraphData) return showStatus('Сначала постройте граф', true);
@@ -830,6 +871,7 @@ let rightLabels = [];
 let hungarianMaximize = false;
 
 function solveHungarian() {
+    if (notifyIfMultiModBlocks('Венгерский алгоритм')) return;
     closeOptionsMenu();
     
     if (!currentGraphData) return showStatus('Сначала постройте граф', true);
@@ -924,6 +966,8 @@ async function submitLabels() {
 }
 
 function rebuildGraphForAssignment(assignmentResult) {
+    window.graphBuiltFromMultiMod = false;
+    cachedVertexDisplayOpts = null;
     if (!currentMatrix) return;
     
     const n = assignmentResult.numVertices;
@@ -1077,9 +1121,195 @@ function rebuildGraph(matrix) {
     buildGraph(matrix);
 }
 
+function transportCostToColor(cij, cMin, cMax) {
+    if (cMax <= cMin + 1e-9) return 'hsl(205, 72%, 42%)';
+    const t = (cij - cMin) / (cMax - cMin);
+    const hue = 205 * (1 - t);
+    return `hsl(${hue}, 74%, 40%)`;
+}
+
+function parseTransportProblemText(raw) {
+    const lines = raw
+        .split(/\n/)
+        .map((l) => l.trim())
+        .filter((l) => l.length > 0 && !l.startsWith('#'));
+    if (lines.length < 4) {
+        throw new Error('Нужны строка m n, m строк тарифов, строка запасов, строка спроса');
+    }
+    const head = lines[0].split(/\s+/).map(Number);
+    const m = head[0];
+    const n = head[1];
+    if (head.length !== 2 || !Number.isInteger(m) || !Number.isInteger(n) || m < 1 || n < 1) {
+        throw new Error('Первая строка: два положительных целых числа m и n');
+    }
+    if (lines.length < 1 + m + 2) {
+        throw new Error(`После «m n» ожидается ${m} строк матрицы и две строки запасов и спроса`);
+    }
+    const costs = [];
+    for (let i = 0; i < m; i++) {
+        const row = lines[1 + i].split(/\s+/).map(Number);
+        if (row.length !== n || row.some((x) => Number.isNaN(x))) {
+            throw new Error(`Строка матрицы ${i + 1}: ровно ${n} чисел`);
+        }
+        costs.push(row);
+    }
+    const supplies = lines[1 + m].split(/\s+/).map(Number);
+    const demands = lines[2 + m].split(/\s+/).map(Number);
+    if (supplies.length !== m || supplies.some((x) => Number.isNaN(x))) {
+        throw new Error(`Строка запасов: ровно ${m} чисел`);
+    }
+    if (demands.length !== n || demands.some((x) => Number.isNaN(x))) {
+        throw new Error(`Строка спроса: ровно ${n} чисел`);
+    }
+    return { m, n, costs, supplies, demands };
+}
+
+function showTransportProblemModal() {
+    closeOptionsMenu();
+    document.getElementById('transportProblemModal').classList.add('active');
+}
+
+function closeTransportProblemModal() {
+    document.getElementById('transportProblemModal').classList.remove('active');
+}
+
+function fillTransportExample() {
+    const ta = document.getElementById('transportProblemInput');
+    if (ta && typeof transportExampleText === 'function') ta.value = transportExampleText();
+}
+
+function runTransportProblemSolve() {
+    const ta = document.getElementById('transportProblemInput');
+    if (!ta) return;
+    try {
+        const { costs, supplies, demands } = parseTransportProblemText(ta.value);
+        if (typeof solveTransportProblem !== 'function') {
+            throw new Error('Не загружен transport-solver.js');
+        }
+        const sol = solveTransportProblem(supplies, demands, costs);
+        closeTransportProblemModal();
+        applyTransportSolutionToCanvas(sol);
+        let msg = `Оптимальный план: сумма cᵢⱼ·xᵢⱼ = ${sol.totalCost.toFixed(4)}. `;
+        if (sol.note) msg += sol.note + ' ';
+        msg += 'На графе: толщина ребра ∼ xᵢⱼ, цвет ∼ тариф cᵢⱼ, подпись — x, c и вклад c·x.';
+        showAlgorithmResult(msg);
+    } catch (e) {
+        showStatus('Транспортная задача: ' + e.message, true);
+    }
+}
+
+function applyTransportSolutionToCanvas(sol) {
+    cachedVertexDisplayOpts = null;
+    window.graphBuiltFromMultiMod = false;
+
+    const mE = sol.mExt;
+    const nE = sol.nExt;
+    const x = sol.xExtended;
+    const c = sol.costExtended;
+    const aExt = sol.suppliesExtended;
+    const bExt = sol.demandsExtended;
+
+    let cMin = Infinity;
+    let cMax = -Infinity;
+    for (let i = 0; i < mE; i++) {
+        for (let j = 0; j < nE; j++) {
+            if (x[i][j] > 1e-6) {
+                cMin = Math.min(cMin, c[i][j]);
+                cMax = Math.max(cMax, c[i][j]);
+            }
+        }
+    }
+    if (!Number.isFinite(cMin)) {
+        cMin = 0;
+        cMax = 1;
+    }
+
+    let maxFlow = 0;
+    for (let i = 0; i < mE; i++) {
+        for (let j = 0; j < nE; j++) {
+            maxFlow = Math.max(maxFlow, x[i][j]);
+        }
+    }
+    if (maxFlow < 1e-9) maxFlow = 1;
+
+    const leftX = -300;
+    const rightX = 300;
+    const rows = Math.max(mE, nE);
+    const vStep = Math.max(52, Math.min(88, 440 / rows));
+    const startY = -((rows - 1) * vStep) / 2;
+
+    const vertices = [];
+    for (let i = 0; i < mE; i++) {
+        const name = i < sol.mOrig ? `О${i + 1}` : 'Фикт. отпр.';
+        vertices.push({
+            x: leftX,
+            y: startY + i * vStep,
+            labelLines: [name, `a=${aExt[i]}`],
+            labelInside: true
+        });
+    }
+    const offsetR = mE;
+    for (let j = 0; j < nE; j++) {
+        const name = j < sol.nOrig ? `П${j + 1}` : 'Фикт. назн.';
+        vertices.push({
+            x: rightX,
+            y: startY + j * vStep,
+            labelLines: [name, `b=${bExt[j]}`],
+            labelInside: true
+        });
+    }
+
+    const edgesOverlay = [];
+    for (let i = 0; i < mE; i++) {
+        for (let j = 0; j < nE; j++) {
+            const f = x[i][j];
+            if (f < 1e-6) continue;
+            const lw = 2 + 9 * (f / maxFlow);
+            const col = transportCostToColor(c[i][j], cMin, cMax);
+            const prod = f * c[i][j];
+            const label =
+                `x=${f < 9.995 ? f.toFixed(2) : f.toFixed(1)}\n` +
+                `c=${c[i][j]}, c·x=${prod < 99.5 ? prod.toFixed(1) : prod.toFixed(0)}`;
+            edgesOverlay.push({
+                from: i,
+                to: offsetR + j,
+                lineWidth: lw,
+                color: col,
+                label
+            });
+        }
+    }
+
+    const numVertices = mE + nE;
+    const matrixPad = Array.from({ length: numVertices }, () => Array(numVertices).fill(0));
+
+    const graphData = {
+        vertices,
+        edges: [],
+        numVertices,
+        renderStraightEdges: true
+    };
+
+    currentGraphData = graphData;
+    currentMatrix = matrixPad;
+    window.currentGraphData = graphData;
+    window.currentMatrix = matrixPad;
+
+    if (graphCanvas) {
+        graphCanvas.setColumnTitles('Пункты отправления (запас)', 'Пункты назначения (спрос)');
+        graphCanvas.setGraphData(graphData, matrixPad);
+        graphCanvas.setTransportOverlayEdges(edgesOverlay);
+    }
+    showStatus(`Транспортная задача: план с ${edgesOverlay.length} ненулевыми перевозками`);
+}
+
 // Экспорт в глобальную область
 window.rebuildGraph = rebuildGraph;
 window.showStatus = showStatus;
+window.showTransportProblemModal = showTransportProblemModal;
+window.closeTransportProblemModal = closeTransportProblemModal;
+window.fillTransportExample = fillTransportExample;
+window.runTransportProblemSolve = runTransportProblemSolve;
 
 // Инициализация после загрузки DOM
 document.addEventListener('DOMContentLoaded', () => {
@@ -1103,6 +1333,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('hungarianModeModal').addEventListener('click', function(e) {
         if (e.target === this) closeHungarianModeModal();
     });
+    document.getElementById('transportProblemModal').addEventListener('click', function(e) {
+        if (e.target === this) closeTransportProblemModal();
+    });
+    const transportContent = document.querySelector('#transportProblemModal .modal-content');
+    if (transportContent) transportContent.addEventListener('click', (e) => e.stopPropagation());
     
     ['addVertexMenu', 'deleteVertexMenu', 'addEdgeMenu', 'deleteEdgeMenu'].forEach(menuId => {
         const menu = document.getElementById(menuId);
@@ -1111,5 +1346,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    showStatus('🖱️ Перетаскивайте вершины | 🖱️ Панорамируйте холст | 🔍 Колесико для зума | 2x клик на миникарте - центр');
+    showStatus(
+        '🖱️ Перетаскивайте вершины | 🖱️ Панорамируйте холст | 🔍 Колесико для зума | 2x клик на миникарте — центр | Ctrl+Shift+A — новая вершина'
+    );
 });
