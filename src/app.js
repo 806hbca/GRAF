@@ -14,6 +14,9 @@ let graphCanvas;
 /** Последние подписи вершин (для повторного buildGraph без явного displayOpts, тот же размер матрицы) */
 let cachedVertexDisplayOpts = null;
 
+/** Слоёвая раскладка для повторного buildGraph (rebuildGraph и смена типа графа) */
+let cachedLayerLayout = null;
+
 /** Граф загружен в формате Multi mod (список рёбер; матрица — суммарные веса) */
 window.graphBuiltFromMultiMod = false;
 
@@ -310,6 +313,22 @@ function closeCreateGraphMenu(e) {
     }
 }
 
+function updateLayerLayoutModalVisibility() {
+    const multi = document.getElementById('graphCbMultiMod').checked;
+    const layerBlock = document.getElementById('layerLayoutBlock');
+    const layerCb = document.getElementById('graphCbLayerLayout');
+    const sizesBlock = document.getElementById('layerSizesBlock');
+    if (!layerBlock) return;
+    if (multi) {
+        layerBlock.style.display = 'none';
+        if (layerCb) layerCb.checked = false;
+        if (sizesBlock) sizesBlock.style.display = 'none';
+    } else {
+        layerBlock.style.display = 'block';
+        if (sizesBlock) sizesBlock.style.display = layerCb && layerCb.checked ? 'block' : 'none';
+    }
+}
+
 function updateInputModalForOptions() {
     const multi = document.getElementById('graphCbMultiMod').checked;
     const nonArb = document.getElementById('graphCbNonArbitrary').checked;
@@ -330,6 +349,74 @@ function updateInputModalForOptions() {
             'Квадратная матрица весов. Пример:<br>' +
             '0 1.5 0 2.3 1<br>1.5 0 1.0 0 8<br>0 1.0 0 1.7 7<br>2.3 0 1.7 0 4<br>0 0 0 0 0';
         namesBlock.style.display = nonArb ? 'block' : 'none';
+    }
+    updateLayerLayoutModalVisibility();
+}
+
+function parseLayerSizes(text) {
+    const parts = text.trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) {
+        throw new Error('Укажите количество вершин на каждой линии, например: 1 2 3 2 1');
+    }
+    return parts.map((p, i) => {
+        const n = parseInt(p, 10);
+        if (Number.isNaN(n) || n < 1 || !Number.isInteger(n)) {
+            throw new Error(`Число ${i + 1} в раскладке должно быть целым ≥ 1`);
+        }
+        return n;
+    });
+}
+
+/**
+ * Последовательное заполнение слоёв слева направо: сначала все вершины 1-й линии,
+ * затем 2-й и т.д. Внутри линии — сверху вниз (slot 0 — верх).
+ * Пример «1 3 3 1», 8 вершин: L0=[0], L1=[1,2,3], L2=[4,5,6], L3=[7].
+ */
+function assignVerticesToLayers(layerSizes, numVertices) {
+    const sum = layerSizes.reduce((a, b) => a + b, 0);
+    if (sum !== numVertices) {
+        throw new Error(
+            `Сумма чисел в раскладке (${sum}) должна равняться числу вершин в матрице (${numVertices})`
+        );
+    }
+    const slotByVertex = [];
+    let v = 0;
+    for (let layer = 0; layer < layerSizes.length; layer++) {
+        for (let slot = 0; slot < layerSizes[layer]; slot++) {
+            slotByVertex[v] = { layer, slot };
+            v++;
+        }
+    }
+    return slotByVertex;
+}
+
+function applyLayerLayoutToGraph(graphData, layerSizes) {
+    const n = graphData.numVertices;
+    const slotByVertex = assignVerticesToLayers(layerSizes, n);
+    const numLayers = layerSizes.length;
+    const maxPerLayer = Math.max(...layerSizes);
+
+    const layerSpacing =
+        numLayers <= 1 ? 0 : Math.min(130, Math.max(88, 980 / (numLayers - 1)));
+    const verticalSpacing = Math.min(120, Math.max(78, 520 / Math.max(1, maxPerLayer - 1)));
+
+    const totalWidth = (numLayers - 1) * layerSpacing;
+    const startX = -totalWidth / 2;
+    const midRow = (maxPerLayer - 1) / 2;
+
+    for (let i = 0; i < n; i++) {
+        const { layer, slot } = slotByVertex[i];
+        const countOnLayer = layerSizes[layer];
+        const startRow = (maxPerLayer - countOnLayer) / 2;
+        const row = startRow + slot;
+        const prev = graphData.vertices[i];
+        graphData.vertices[i] = {
+            x: startX + layer * layerSpacing,
+            y: (row - midRow) * verticalSpacing,
+            label: prev.label,
+            labelInside: prev.labelInside,
+            side: prev.side
+        };
     }
 }
 
@@ -434,8 +521,12 @@ function parseAndBuildGraphFromContent(content) {
     const multi = document.getElementById('graphCbMultiMod').checked;
     const nonArb = document.getElementById('graphCbNonArbitrary').checked;
     const namesText = document.getElementById('vertexNamesInput').value;
+    const layerLayout = document.getElementById('graphCbLayerLayout')?.checked;
 
     if (multi) {
+        if (layerLayout) {
+            throw new Error('Слоёвая раскладка недоступна для режима Multi mod');
+        }
         const { matrix, vertexNames, explicitEdges } = parseMultiMod(content);
         buildGraph(matrix, { names: vertexNames, labelInside: true, explicitEdges });
         return;
@@ -447,6 +538,13 @@ function parseAndBuildGraphFromContent(content) {
     if (nonArb) {
         const names = parseVertexNamesList(namesText, n);
         displayOpts = { names, labelInside: true };
+    }
+    if (layerLayout) {
+        const layerSizes = parseLayerSizes(document.getElementById('layerSizesInput').value);
+        displayOpts = displayOpts || {};
+        displayOpts.layerSizes = layerSizes;
+    } else {
+        cachedLayerLayout = null;
     }
     buildGraph(matrix, displayOpts);
 }
@@ -573,8 +671,22 @@ async function buildGraph(matrix, displayOpts) {
                 };
             }
         }
+
+        const fp = matrixFingerprint(matrix);
+        let layerSizesToApply = opts && opts.layerSizes ? opts.layerSizes : null;
+        if (!layerSizesToApply && cachedLayerLayout && cachedLayerLayout.fingerprint === fp) {
+            layerSizesToApply = cachedLayerLayout.sizes;
+        }
+        if (layerSizesToApply) {
+            applyLayerLayoutToGraph(graphData, layerSizesToApply);
+            cachedLayerLayout = { sizes: [...layerSizesToApply], fingerprint: fp };
+            if (graphCanvas) graphCanvas.setColumnTitles('', '');
+        } else {
+            cachedLayerLayout = null;
+        }
         
         if (graphCanvas) graphCanvas.setGraphData(graphData, matrix);
+        if (graphCanvas) graphCanvas.setMaxFlowEdgeLabels(null);
         showStatus(`Граф: ${graphData.numVertices} вершин, ${graphData.edges.length} рёбер`);
 
         window.graphBuiltFromMultiMod = !!(
@@ -607,11 +719,17 @@ function clearGraph() {
     window.currentMatrix = null;
     window.currentGraphData = null;
     cachedVertexDisplayOpts = null;
+    cachedLayerLayout = null;
     window.graphBuiltFromMultiMod = false;
     if (graphCanvas) graphCanvas.setGraphData(null, null);
     document.getElementById('matrixInput').value = '';
     const vn = document.getElementById('vertexNamesInput');
     if (vn) vn.value = '';
+    const layerCb = document.getElementById('graphCbLayerLayout');
+    const layerInp = document.getElementById('layerSizesInput');
+    if (layerCb) layerCb.checked = false;
+    if (layerInp) layerInp.value = '';
+    updateLayerLayoutModalVisibility();
     document.getElementById('algorithmResult').style.display = 'none';
     showStatus('Граф очищен');
 }
@@ -885,6 +1003,112 @@ let rightLabels = [];
 /** Режим венгерского алгоритма: false = минимизация суммы, true = максимизация */
 let hungarianMaximize = false;
 
+function showMaxFlowModal() {
+    if (notifyIfMultiModBlocks('Максимальный поток')) return;
+    closeOptionsMenu();
+    if (!currentGraphData) return showStatus('Сначала постройте граф', true);
+
+    const n = currentGraphData.numVertices;
+    const srcEl = document.getElementById('maxFlowSource');
+    const sinkEl = document.getElementById('maxFlowSink');
+    if (srcEl) srcEl.max = n - 1;
+    if (sinkEl) {
+        sinkEl.max = n - 1;
+        if (parseInt(sinkEl.value, 10) >= n) sinkEl.value = String(n - 1);
+    }
+
+    document.getElementById('maxFlowModal').classList.add('active');
+}
+
+function closeMaxFlowModal() {
+    document.getElementById('maxFlowModal').classList.remove('active');
+}
+
+function getSelectedMaxFlowMode() {
+    const picked = document.querySelector('input[name="maxFlowMode"]:checked');
+    return picked ? picked.value : 'saturation';
+}
+
+async function runMaxFlowSolve() {
+    if (!currentMatrix || !currentGraphData) {
+        showStatus('Сначала постройте граф', true);
+        return;
+    }
+
+    const n = currentMatrix.length;
+    const source = parseInt(document.getElementById('maxFlowSource').value, 10);
+    const sink = parseInt(document.getElementById('maxFlowSink').value, 10);
+    const mode = getSelectedMaxFlowMode();
+
+    if (Number.isNaN(source) || source < 0 || source >= n) {
+        showStatus('Некорректный исток', true);
+        return;
+    }
+    if (Number.isNaN(sink) || sink < 0 || sink >= n) {
+        showStatus('Некорректный сток', true);
+        return;
+    }
+    if (source === sink) {
+        showStatus('Исток и сток должны различаться', true);
+        return;
+    }
+
+    if (graphCanvas && graphCanvas.graphType !== 'directed') {
+        setGraphType('directed');
+        const dirRadio = document.querySelector('input[name="graphType"][value="directed"]');
+        if (dirRadio) dirRadio.checked = true;
+    }
+
+    try {
+        showStatus('Расчёт максимального потока...');
+        const result = await window.cpp.solveMaxFlow(currentMatrix, source, sink, mode);
+
+        closeMaxFlowModal();
+
+        if (graphCanvas) {
+            graphCanvas.clearHighlights();
+            graphCanvas.setMaxFlowEdgeLabels(result.edges);
+            graphCanvas.highlightVertices([source, sink]);
+        }
+
+        const modeLabel =
+            mode === 'saturation' || mode === 'saturate'
+                ? 'насыщение потока'
+                : 'финальный результат';
+        showAlgorithmResult(
+            `Поток в сети (${modeLabel}): ${Number(result.maxFlow).toFixed(1)} | исток ${source} → сток ${sink}`
+        );
+        showStatus(`Поток в сети: ${Number(result.maxFlow).toFixed(1)} (${modeLabel})`);
+    } catch (e) {
+        showStatus('Ошибка: ' + e.message, true);
+    }
+}
+
+function fillMaxFlowExample() {
+    const matrix = [
+        [0, 6, 6, 0, 0, 0, 0, 0],
+        [0, 0, 0, 6, 2, 0, 0, 0],
+        [0, 0, 0, 5, 8, 0, 0, 0],
+        [0, 0, 0, 0, 0, 2, 9, 0],
+        [0, 0, 0, 0, 0, 0, 11, 7],
+        [0, 0, 0, 0, 0, 0, 0, 4],
+        [0, 0, 0, 0, 0, 0, 0, 4],
+        [0, 0, 0, 0, 0, 0, 0, 0]
+    ];
+
+    document.getElementById('graphCbLayerLayout').checked = true;
+    document.getElementById('layerSizesInput').value = '1 3 3 1';
+    document.getElementById('maxFlowSource').value = '0';
+    document.getElementById('maxFlowSink').value = '7';
+
+    const dirRadio = document.querySelector('input[name="graphType"][value="directed"]');
+    if (dirRadio) dirRadio.checked = true;
+    setGraphType('directed');
+
+    buildGraph(matrix, { layerSizes: [1, 3, 3, 1] });
+    showStatus('Пример из учебника (стр. 62–64): слои 1 3 3 1, исток 0, сток 7. Нажмите «Решить».');
+}
+
 function solveHungarian() {
     if (notifyIfMultiModBlocks('Венгерский алгоритм')) return;
     closeOptionsMenu();
@@ -983,6 +1207,7 @@ async function submitLabels() {
 function rebuildGraphForAssignment(assignmentResult) {
     window.graphBuiltFromMultiMod = false;
     cachedVertexDisplayOpts = null;
+    cachedLayerLayout = null;
     if (!currentMatrix) return;
     
     const n = assignmentResult.numVertices;
@@ -1215,6 +1440,7 @@ function runTransportProblemSolve() {
 
 function applyTransportSolutionToCanvas(sol) {
     cachedVertexDisplayOpts = null;
+    cachedLayerLayout = null;
     window.graphBuiltFromMultiMod = false;
 
     const mE = sol.mExt;
@@ -1325,6 +1551,10 @@ window.showTransportProblemModal = showTransportProblemModal;
 window.closeTransportProblemModal = closeTransportProblemModal;
 window.fillTransportExample = fillTransportExample;
 window.runTransportProblemSolve = runTransportProblemSolve;
+window.showMaxFlowModal = showMaxFlowModal;
+window.closeMaxFlowModal = closeMaxFlowModal;
+window.runMaxFlowSolve = runMaxFlowSolve;
+window.fillMaxFlowExample = fillMaxFlowExample;
 
 // Инициализация после загрузки DOM
 document.addEventListener('DOMContentLoaded', () => {
@@ -1335,6 +1565,17 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('inputModal').addEventListener('click', function(e) {
         if (e.target === this) closeModal();
     });
+
+    const multiCb = document.getElementById('graphCbMultiMod');
+    const layerCb = document.getElementById('graphCbLayerLayout');
+    if (multiCb) {
+        multiCb.addEventListener('change', () => {
+            updateInputModalForOptions();
+        });
+    }
+    if (layerCb) {
+        layerCb.addEventListener('change', updateLayerLayoutModalVisibility);
+    }
     
     // Обработчики для popup меню
     document.getElementById('optionsMenu').addEventListener('click', (e) => e.stopPropagation());
@@ -1347,6 +1588,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('hungarianModeModal').addEventListener('click', function(e) {
         if (e.target === this) closeHungarianModeModal();
+    });
+    document.getElementById('maxFlowModal').addEventListener('click', function(e) {
+        if (e.target === this) closeMaxFlowModal();
     });
     document.getElementById('transportProblemModal').addEventListener('click', function(e) {
         if (e.target === this) closeTransportProblemModal();

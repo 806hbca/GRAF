@@ -209,6 +209,73 @@ canvas {
     justify-content: flex-end;
 }
 
+.layer-layout-block {
+    margin-bottom: 12px;
+    padding-top: 4px;
+    border-top: 1px solid #ecf0f1;
+}
+
+.layer-layout-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    color: #2c3e50;
+    cursor: pointer;
+    margin-bottom: 6px;
+}
+
+.layer-layout-hint {
+    margin: 0 0 10px 0;
+    font-size: 0.85rem;
+    color: #7f8c8d;
+    line-height: 1.35;
+}
+
+.max-flow-mode-option {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    border: 1px solid #ecf0f1;
+    border-radius: 8px;
+    cursor: pointer;
+    background: #fafbfc;
+}
+
+.max-flow-mode-option:hover {
+    border-color: #667eea;
+    background: #f8f9ff;
+}
+
+.max-flow-mode-option input {
+    margin-right: 8px;
+}
+
+.max-flow-mode-option span {
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.max-flow-mode-option small {
+    color: #7f8c8d;
+    font-size: 0.82rem;
+    line-height: 1.35;
+    margin-left: 22px;
+}
+
+.layer-sizes-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    font-family: 'Courier New', monospace;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    background: #f8f9fa;
+    color: #2c3e50;
+}
+
 /* Стили для popup меню */
 .popup-menu {
     position: fixed;

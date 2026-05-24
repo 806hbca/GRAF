@@ -5,17 +5,45 @@
   "main": "src/main.js",
   "scripts": {
     "build-addon": "cd addon && rmdir /s /q build && node-gyp configure && node-gyp build",
-    "start": "npm run build-addon && electron ."
+    "start": "npm run build-addon && electron .",
+    "dist": "npm run build-addon && electron-builder --win"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "electron": "^41.3.0",
     "node-addon-api": "^8.7.0"
   },
   "devDependencies": {
+    "electron": "^41.3.0",
+    "electron-builder": "^26.0.12",
     "node-gyp": "^12.3.0"
+  },
+  "build": {
+    "appId": "com.graphvisualizer.graf",
+    "productName": "GRAF",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json",
+      "addon/build/Release/grafalgorithms.node"
+    ],
+    "asarUnpack": [
+      "**/*.node"
+    ],
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
   }
 }

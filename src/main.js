@@ -101,6 +101,13 @@ function registerIpcHandlers() {
         return addon.solveHungarian(m, !!maximize)
     })
 
+    // Максимальный поток (Ford–Fulkerson)
+    ipcMain.handle('solve-max-flow', async (event, matrix, source, sink, mode) => {
+        const m = Array.isArray(matrix) ? matrix : currentMatrix
+        if (!addon || !m) throw new Error('Addon or matrix not available')
+        return addon.solveMaxFlow(m, source, sink, mode)
+    })
+
     // Открытие файла
     ipcMain.handle('open-file', async () => {
         if (!win) throw new Error('Window not available')

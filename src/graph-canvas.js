@@ -32,6 +32,8 @@ class InteractiveGraphCanvas {
         this.highlightedPath = [];
         /** Подписи алгоритмов по рёбрам: [{ from, to, value }, ...] — точка как у веса ребра */
         this.algorithmEdgeLabels = null;
+        /** Подписи потока: ключ «from,to» → { capacity, flow } — формат capacity/flow */
+        this.maxFlowEdgeLabels = null;
         
         this.shiftPressed = false;
         this.shiftFirstVertex = null;
@@ -372,6 +374,7 @@ class InteractiveGraphCanvas {
         this.matchingEdges = null;
         this.transportOverlayEdges = null;
         this.algorithmEdgeLabels = null;
+        this.maxFlowEdgeLabels = null;
     }
 
     /**
@@ -395,6 +398,54 @@ class InteractiveGraphCanvas {
     /** @param {{from:number,to:number,value:number}[]} entries */
     setAlgorithmEdgeLabels(entries) {
         this.algorithmEdgeLabels = entries && entries.length ? entries : null;
+    }
+
+    setMaxFlowEdgeLabels(edges) {
+        if (!edges || !edges.length) {
+            this.maxFlowEdgeLabels = null;
+            return;
+        }
+        const map = new Map();
+        for (const e of edges) {
+            map.set(`${e.from},${e.to}`, { capacity: e.capacity, flow: e.flow });
+        }
+        this.maxFlowEdgeLabels = map;
+    }
+
+    formatFlowNumber(x) {
+        const r = Math.round(x * 10) / 10;
+        return Math.abs(r - Math.round(r)) < 1e-6 ? String(Math.round(r)) : r.toFixed(1);
+    }
+
+    getEdgeWeightLabel(fromIdx, toIdx, weight, edge) {
+        if (this.maxFlowEdgeLabels) {
+            const entry = this.maxFlowEdgeLabels.get(`${fromIdx},${toIdx}`);
+            if (entry) {
+                return `${this.formatFlowNumber(entry.capacity)}/${this.formatFlowNumber(entry.flow)}`;
+            }
+            return null;
+        }
+        if (weight !== 0 && (weight !== 1 || edge?.isBidirectional)) {
+            return Number(weight).toFixed(1);
+        }
+        if (this.graphType === 'directed' && weight !== 0) {
+            return Number(weight).toFixed(1);
+        }
+        return null;
+    }
+
+    drawEdgeWeightLabel(pos, txt, color) {
+        const tw = this.ctx.measureText(txt).width;
+        this.ctx.fillStyle = 'rgba(255,255,255,0.95)';
+        this.ctx.fillRect(pos.x - tw / 2 - 6, pos.y - 11, tw + 12, 22);
+        this.ctx.strokeStyle = color;
+        this.ctx.lineWidth = 1;
+        this.ctx.strokeRect(pos.x - tw / 2 - 6, pos.y - 11, tw + 12, 22);
+        this.ctx.fillStyle = color;
+        this.ctx.font = 'bold 13px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(txt, pos.x, pos.y);
     }
     
     isEdgeInPath(from, to) {
@@ -445,21 +496,11 @@ class InteractiveGraphCanvas {
         this.ctx.stroke();
 
         const w = edge.weight;
-        if (w !== 0 && (w !== 1 || edge.isBidirectional)) {
+        const labelTxt = this.getEdgeWeightLabel(edge.from, edge.to, w, edge);
+        if (labelTxt) {
             const mx = (from.x + to.x) / 2;
             const my = (from.y + to.y) / 2;
-            const txt = Number(w).toFixed(1);
-            const tw = this.ctx.measureText(txt).width;
-            this.ctx.fillStyle = 'rgba(255,255,255,0.95)';
-            this.ctx.fillRect(mx - tw / 2 - 6, my - 11, tw + 12, 22);
-            this.ctx.strokeStyle = color;
-            this.ctx.lineWidth = 1;
-            this.ctx.strokeRect(mx - tw / 2 - 6, my - 11, tw + 12, 22);
-            this.ctx.fillStyle = color;
-            this.ctx.font = 'bold 13px Arial';
-            this.ctx.textAlign = 'center';
-            this.ctx.textBaseline = 'middle';
-            this.ctx.fillText(txt, mx, my);
+            this.drawEdgeWeightLabel({ x: mx, y: my }, labelTxt, color);
         }
 
         if (this.graphType !== 'directed') return;
@@ -557,8 +598,13 @@ class InteractiveGraphCanvas {
         this.ctx.stroke();
         this.ctx.restore();
 
-        const showWeight = weight !== 0 && (weight !== 1 || drawDirectedArrow || edgeIsBidirectional);
-        if (showWeight) {
+        const labelTxt = this.getEdgeWeightLabel(
+            typeof vertexIndex === 'number' ? vertexIndex : 0,
+            typeof vertexIndex === 'number' ? vertexIndex : 0,
+            weight,
+            { isBidirectional: edgeIsBidirectional }
+        );
+        if (labelTxt) {
             const tW = total > 1 ? 0.28 + (0.5 * slot) / Math.max(1, total - 1) : 0.5;
             let pos = this.quadBezierPoint(tW, p0, p1, p2);
             const tan = this.quadBezierTangent(tW, p0, p1, p2);
@@ -566,18 +612,7 @@ class InteractiveGraphCanvas {
             const perpY = tan.dx;
             const labelOff = (slot - (total - 1) / 2) * 20;
             pos = { x: pos.x + perpX * labelOff, y: pos.y + perpY * labelOff };
-            const txt = Number(weight).toFixed(1);
-            const tw = this.ctx.measureText(txt).width;
-            this.ctx.fillStyle = 'rgba(255,255,255,0.95)';
-            this.ctx.fillRect(pos.x - tw / 2 - 6, pos.y - 11, tw + 12, 22);
-            this.ctx.strokeStyle = color;
-            this.ctx.lineWidth = 1;
-            this.ctx.strokeRect(pos.x - tw / 2 - 6, pos.y - 11, tw + 12, 22);
-            this.ctx.fillStyle = color;
-            this.ctx.font = 'bold 13px Arial';
-            this.ctx.textAlign = 'center';
-            this.ctx.textBaseline = 'middle';
-            this.ctx.fillText(txt, pos.x, pos.y);
+            this.drawEdgeWeightLabel(pos, labelTxt, color);
         }
 
         if (drawDirectedArrow) {
@@ -588,7 +623,7 @@ class InteractiveGraphCanvas {
         }
     }
 
-    drawCurvedEdgeArc(fromPt, toPt, weight, slot, total, color, lineWidth, drawDirectedArrow, bidirArrows, edgeIsBidirectional) {
+    drawCurvedEdgeArc(fromPt, toPt, weight, slot, total, color, lineWidth, drawDirectedArrow, bidirArrows, edgeIsBidirectional, edgeMeta = null) {
         const vr = InteractiveGraphCanvas.vertexBodyRadius();
         const dx0 = toPt.x - fromPt.x;
         const dy0 = toPt.y - fromPt.y;
@@ -636,8 +671,10 @@ class InteractiveGraphCanvas {
         this.ctx.stroke();
         this.ctx.restore();
 
-        const showWeight = weight !== 0 && (weight !== 1 || bidirArrows || edgeIsBidirectional);
-        if (showWeight) {
+        const labelTxt = edgeMeta
+            ? this.getEdgeWeightLabel(edgeMeta.from, edgeMeta.to, weight, edgeMeta)
+            : this.getEdgeWeightLabel(-1, -1, weight, { isBidirectional: edgeIsBidirectional });
+        if (labelTxt) {
             const tW = total > 1 ? 0.26 + (0.48 * slot) / Math.max(1, total - 1) : 0.5;
             let pos = this.quadBezierPoint(tW, p0, p1, p2);
             const tan = this.quadBezierTangent(tW, p0, p1, p2);
@@ -645,18 +682,7 @@ class InteractiveGraphCanvas {
             const perpY = tan.dx;
             const labelOff = slotIndex * 28;
             pos = { x: pos.x + perpX * labelOff, y: pos.y + perpY * labelOff };
-            const txt = Number(weight).toFixed(1);
-            const tw = this.ctx.measureText(txt).width;
-            this.ctx.fillStyle = 'rgba(255,255,255,0.95)';
-            this.ctx.fillRect(pos.x - tw / 2 - 6, pos.y - 11, tw + 12, 22);
-            this.ctx.strokeStyle = color;
-            this.ctx.lineWidth = 1;
-            this.ctx.strokeRect(pos.x - tw / 2 - 6, pos.y - 11, tw + 12, 22);
-            this.ctx.fillStyle = color;
-            this.ctx.font = 'bold 13px Arial';
-            this.ctx.textAlign = 'center';
-            this.ctx.textBaseline = 'middle';
-            this.ctx.fillText(txt, pos.x, pos.y);
+            this.drawEdgeWeightLabel(pos, labelTxt, color);
         }
 
         const rimTo = this.vertexRimPoint(toPt, fromPt, vr - 2);
@@ -987,7 +1013,7 @@ class InteractiveGraphCanvas {
             } else {
                 const dirArrow = this.graphType === 'directed' && !edge.isBidirectional;
                 const bidirArrows = this.graphType === 'directed' && edge.isBidirectional;
-                this.drawCurvedEdgeArc(from, to, edge.weight, m.slot, m.total, '#667eea', 4, dirArrow, bidirArrows, edge.isBidirectional);
+                this.drawCurvedEdgeArc(from, to, edge.weight, m.slot, m.total, '#667eea', 4, dirArrow, bidirArrows, edge.isBidirectional, edge);
             }
         });
     }

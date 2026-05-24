@@ -1432,6 +1432,296 @@ Napi::Value PrimMST(const Napi::CallbackInfo &info)
     return result;
 }
 
+// --- Максимальный поток (Фord–Fulkerson): насыщение (только «свободные» дуги) + финал (полная остаточная сеть) ---
+
+static std::vector<std::vector<double>> parseMatrixArg(const Napi::Array &matrixArray, Napi::Env env)
+{
+    int n = matrixArray.Length();
+    std::vector<std::vector<double>> matrix(n, std::vector<double>(n, 0));
+    for (int i = 0; i < n; i++)
+    {
+        Napi::Array row = matrixArray.Get(i).As<Napi::Array>();
+        if ((int)row.Length() != n)
+        {
+            Napi::TypeError::New(env, "Matrix must be square").ThrowAsJavaScriptException();
+            return {};
+        }
+        for (int j = 0; j < n; j++)
+        {
+            matrix[i][j] = row.Get(j).As<Napi::Number>().DoubleValue();
+        }
+    }
+    return matrix;
+}
+
+static Napi::Array flowEdgesToNapi(Napi::Env env,
+                                   const std::vector<std::vector<double>> &cap,
+                                   const std::vector<std::vector<double>> &flow)
+{
+    int n = (int)cap.size();
+    Napi::Array edgesArray = Napi::Array::New(env);
+    int idx = 0;
+    for (int i = 0; i < n; i++)
+    {
+        for (int j = 0; j < n; j++)
+        {
+            if (cap[i][j] > 1e-12)
+            {
+                Napi::Object edge = Napi::Object::New(env);
+                edge.Set("from", i);
+                edge.Set("to", j);
+                edge.Set("capacity", cap[i][j]);
+                edge.Set("flow", flow[i][j]);
+                edgesArray.Set(idx++, edge);
+            }
+        }
+    }
+    return edgesArray;
+}
+
+static Napi::Array pathToNapi(Napi::Env env, const std::vector<int> &path)
+{
+    Napi::Array arr = Napi::Array::New(env, path.size());
+    for (size_t i = 0; i < path.size(); i++)
+    {
+        arr.Set(i, path[i]);
+    }
+    return arr;
+}
+
+Napi::Value SolveMaxFlow(const Napi::CallbackInfo &info)
+{
+    Napi::Env env = info.Env();
+
+    if (info.Length() < 1 || !info[0].IsArray())
+    {
+        Napi::TypeError::New(env, "Expected adjacency matrix").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    auto cap = parseMatrixArg(info[0].As<Napi::Array>(), env);
+    if (cap.empty())
+        return env.Null();
+
+    int n = (int)cap.size();
+    int source = 0;
+    int sink = n > 0 ? n - 1 : 0;
+    std::string mode = "final";
+
+    if (info.Length() >= 2 && info[1].IsNumber())
+        source = info[1].As<Napi::Number>().Int32Value();
+    if (info.Length() >= 3 && info[2].IsNumber())
+        sink = info[2].As<Napi::Number>().Int32Value();
+    if (info.Length() >= 4 && info[3].IsString())
+        mode = info[3].As<Napi::String>().Utf8Value();
+
+    if (source < 0 || source >= n || sink < 0 || sink >= n)
+    {
+        Napi::TypeError::New(env, "Source and sink must be valid vertex indices").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    if (source == sink)
+    {
+        Napi::TypeError::New(env, "Source and sink must differ").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    std::vector<std::vector<double>> flow(n, std::vector<double>(n, 0.0));
+    std::vector<int> lastPath;
+    bool wantFinal = (mode != "saturation" && mode != "saturate");
+
+    auto augmentAlong = [&](const std::vector<int> &path, double delta)
+    {
+        for (size_t k = 0; k + 1 < path.size(); k++)
+        {
+            int u = path[k];
+            int v = path[k + 1];
+            if (cap[u][v] > 1e-12)
+            {
+                flow[u][v] += delta;
+            }
+            else if (cap[v][u] > 1e-12)
+            {
+                flow[v][u] -= delta;
+            }
+        }
+    };
+
+    auto bfsForwardOnly = [&](std::vector<int> &path, double &delta) -> bool
+    {
+        std::vector<int> prev(n, -1);
+        std::queue<int> q;
+        prev[source] = source;
+        q.push(source);
+
+        while (!q.empty())
+        {
+            int u = q.front();
+            q.pop();
+            for (int v = 0; v < n; v++)
+            {
+                if (prev[v] != -1)
+                    continue;
+                if (cap[u][v] > 1e-12 && flow[u][v] + 1e-9 < cap[u][v])
+                {
+                    prev[v] = u;
+                    q.push(v);
+                    if (v == sink)
+                        break;
+                }
+            }
+        }
+
+        if (prev[sink] == -1)
+            return false;
+
+        path.clear();
+        for (int v = sink; v != source; v = prev[v])
+            path.push_back(v);
+        path.push_back(source);
+        std::reverse(path.begin(), path.end());
+
+        delta = std::numeric_limits<double>::max();
+        for (size_t k = 0; k + 1 < path.size(); k++)
+        {
+            int u = path[k];
+            int v = path[k + 1];
+            delta = std::min(delta, cap[u][v] - flow[u][v]);
+        }
+        return delta > 1e-12;
+    };
+
+    auto bfsResidual = [&](std::vector<int> &path, std::vector<int> &edgeDir, double &delta) -> bool
+    {
+        std::vector<int> prev(n, -1);
+        std::vector<int> dir(n, 0);
+        std::queue<int> q;
+        prev[source] = source;
+        q.push(source);
+
+        while (!q.empty())
+        {
+            int u = q.front();
+            q.pop();
+            for (int v = 0; v < n; v++)
+            {
+                if (prev[v] != -1)
+                    continue;
+                if (cap[u][v] > 1e-12 && flow[u][v] + 1e-9 < cap[u][v])
+                {
+                    prev[v] = u;
+                    dir[v] = 1;
+                    q.push(v);
+                    if (v == sink)
+                        break;
+                }
+                else if (cap[v][u] > 1e-12 && flow[v][u] > 1e-9)
+                {
+                    prev[v] = u;
+                    dir[v] = -1;
+                    q.push(v);
+                    if (v == sink)
+                        break;
+                }
+            }
+        }
+
+        if (prev[sink] == -1)
+            return false;
+
+        path.clear();
+        edgeDir.clear();
+        delta = std::numeric_limits<double>::max();
+        for (int v = sink; v != source; v = prev[v])
+            path.push_back(v);
+        path.push_back(source);
+        std::reverse(path.begin(), path.end());
+
+        edgeDir.resize(path.size() - 1);
+        for (size_t k = 0; k + 1 < path.size(); k++)
+        {
+            int u = path[k];
+            int v = path[k + 1];
+            if (cap[u][v] > 1e-12 && flow[u][v] + 1e-9 < cap[u][v])
+            {
+                edgeDir[k] = 1;
+                delta = std::min(delta, cap[u][v] - flow[u][v]);
+            }
+            else
+            {
+                edgeDir[k] = -1;
+                delta = std::min(delta, flow[v][u]);
+            }
+        }
+        return delta > 1e-12;
+    };
+
+    // Фаза 1: насыщение — только дуги с запасом пропускной способности (без обратных дуг)
+    while (true)
+    {
+        std::vector<int> path;
+        double delta = 0;
+        if (!bfsForwardOnly(path, delta))
+            break;
+        augmentAlong(path, delta);
+        lastPath = path;
+    }
+
+    std::vector<std::vector<double>> saturationFlow = flow;
+    std::vector<int> saturationPath = lastPath;
+
+    // Фаза 2: перераспределение в остаточной сети до максимума
+    if (wantFinal)
+    {
+        while (true)
+        {
+            std::vector<int> path;
+            std::vector<int> edgeDir;
+            double delta = std::numeric_limits<double>::max();
+            if (!bfsResidual(path, edgeDir, delta))
+                break;
+
+            for (size_t k = 0; k + 1 < path.size(); k++)
+            {
+                int u = path[k];
+                int v = path[k + 1];
+                if (edgeDir[k] == 1)
+                    flow[u][v] += delta;
+                else
+                    flow[v][u] -= delta;
+            }
+            lastPath = path;
+        }
+    }
+
+    const auto &resultFlow = wantFinal ? flow : saturationFlow;
+    const auto &resultPath = wantFinal ? lastPath : saturationPath;
+
+    double totalFlow = 0;
+    for (int v = 0; v < n; v++)
+    {
+        if (cap[source][v] > 1e-12)
+            totalFlow += resultFlow[source][v];
+    }
+
+    Napi::Object result = Napi::Object::New(env);
+    result.Set("maxFlow", totalFlow);
+    result.Set("source", source);
+    result.Set("sink", sink);
+    result.Set("mode", wantFinal ? Napi::String::New(env, "final") : Napi::String::New(env, "saturation"));
+    result.Set("edges", flowEdgesToNapi(env, cap, resultFlow));
+    result.Set("augmentingPath", pathToNapi(env, resultPath));
+    result.Set("saturationMaxFlow", [&]() {
+        double tf = 0;
+        for (int v = 0; v < n; v++)
+            if (cap[source][v] > 1e-12)
+                tf += saturationFlow[source][v];
+        return tf;
+    }());
+
+    return result;
+}
+
 // Регистрация функций
 Napi::Object Init(Napi::Env env, Napi::Object exports)
 {
@@ -1445,7 +1735,8 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
     exports.Set("solveTSP", Napi::Function::New(env, SolveTSP));
     exports.Set("kruskalMST", Napi::Function::New(env, KruskalMST));
     exports.Set("primMST", Napi::Function::New(env, PrimMST));
-    exports.Set("solveHungarian", Napi::Function::New(env, SolveHungarian)); // <-- Должна быть эта строка
+    exports.Set("solveHungarian", Napi::Function::New(env, SolveHungarian));
+    exports.Set("solveMaxFlow", Napi::Function::New(env, SolveMaxFlow));
     return exports;
 }
 

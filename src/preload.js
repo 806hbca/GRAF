@@ -12,7 +12,9 @@ contextBridge.exposeInMainWorld('cpp', {
     solveTSP: () => ipcRenderer.invoke('solve-tsp'),
     kruskalMST: () => ipcRenderer.invoke('kruskal-mst'),
     primMST: () => ipcRenderer.invoke('prim-mst'),
-    solveHungarian: (matrix, maximize) => ipcRenderer.invoke('solve-hungarian', matrix, !!maximize)
+    solveHungarian: (matrix, maximize) => ipcRenderer.invoke('solve-hungarian', matrix, !!maximize),
+    solveMaxFlow: (matrix, source, sink, mode) =>
+        ipcRenderer.invoke('solve-max-flow', matrix, source, sink, mode)
 })
 
 contextBridge.exposeInMainWorld('electron', {

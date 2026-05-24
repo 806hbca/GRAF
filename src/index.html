@@ -76,6 +76,17 @@
                 <textarea id="vertexNamesInput" placeholder="Например: A Б В или по одному в строке" style="width: 100%; height: 72px; min-height: 72px;"></textarea>
             </div>
             <textarea id="matrixInput" placeholder="Введите матрицу..."></textarea>
+            <div id="layerLayoutBlock" class="layer-layout-block" style="display: none;">
+                <label class="layer-layout-option">
+                    <input type="checkbox" id="graphCbLayerLayout">
+                    <span>Слоёвая раскладка</span>
+                </label>
+                <p class="layer-layout-hint">Вершины заполняют линии слева направо, внутри линии — сверху вниз. Одиночные вершины выравниваются по центру. Недоступно для Multi mod.</p>
+                <div id="layerSizesBlock" style="display: none; margin-bottom: 12px;">
+                    <label style="display: block; font-weight: 600; color: #2c3e50; margin-bottom: 6px;">Вершин на каждой линии (через пробел):</label>
+                    <input type="text" id="layerSizesInput" class="layer-sizes-input" placeholder="Например: 1 2 3 2 1">
+                </div>
+            </div>
             <div class="modal-buttons">
                 <button onclick="closeModal()" style="background: #95a5a6;">Отмена</button>
                 <button onclick="submitMatrix()" class="success">Построить граф</button>
@@ -166,6 +177,16 @@
             <div class="option-info">
                 <div class="option-title">Решение транспортной задачи</div>
                 <div class="option-desc">Ввод матрицы тарифов, запасов и спроса; оптимальный план на двудольном графе</div>
+            </div>
+        </div>
+
+        <div class="option-category">Поток в сети</div>
+
+        <div class="option-item" onclick="showMaxFlowModal()">
+            <div class="option-icon">🌊</div>
+            <div class="option-info">
+                <div class="option-title">Максимальный поток</div>
+                <div class="option-desc">Алгоритм Форда–Фалкерсона; подписи дуг: пропускная способность/поток</div>
             </div>
         </div>
 
@@ -350,6 +371,41 @@
                 <button type="button" onclick="fillTransportExample()" style="background: #3498db;">Пример (как в учебниках)</button>
                 <button type="button" onclick="closeTransportProblemModal()" style="background: #95a5a6;">Отмена</button>
                 <button type="button" onclick="runTransportProblemSolve()" class="success">Построить граф и решить</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="maxFlowModal" class="modal">
+        <div class="modal-content" style="max-width: 480px;">
+            <h3>Максимальный поток в сети</h3>
+            <p style="color: #7f8c8d; margin-bottom: 16px; line-height: 1.45;">
+                Матрица смежности задаёт <strong>пропускные способности</strong> дуг. На ребре отображается
+                <strong>способность/поток</strong> (числитель ≥ знаменателя; поток может быть 0).
+                Исток и сток — по индексам вершин (0…n−1), как в учебнике: 0 — исток, n−1 — сток.
+            </p>
+            <div class="start-vertex-input">
+                <label for="maxFlowSource">Исток (источник):</label>
+                <input type="number" id="maxFlowSource" value="0" min="0" placeholder="0">
+            </div>
+            <div class="start-vertex-input">
+                <label for="maxFlowSink">Сток (приёмник):</label>
+                <input type="number" id="maxFlowSink" value="7" min="0" placeholder="n−1">
+            </div>
+            <p style="font-weight: 600; color: #2c3e50; margin: 14px 0 8px;">Этап отрисовки:</p>
+            <label class="max-flow-mode-option">
+                <input type="radio" name="maxFlowMode" value="saturation" checked>
+                <span>Насыщение потока</span>
+                <small>После фазы насыщения (только «свободные» дуги), как рис. 4.6 в учебнике</small>
+            </label>
+            <label class="max-flow-mode-option">
+                <input type="radio" name="maxFlowMode" value="final">
+                <span>Финальный результат</span>
+                <small>Максимальный поток после перераспределения в остаточной сети, как рис. 4.7</small>
+            </label>
+            <div class="modal-buttons" style="margin-top: 16px; flex-wrap: wrap; gap: 8px;">
+                <button type="button" onclick="fillMaxFlowExample()" style="background: #3498db;">Пример (стр. 62–64)</button>
+                <button type="button" onclick="closeMaxFlowModal()" style="background: #95a5a6;">Отмена</button>
+                <button type="button" onclick="runMaxFlowSolve()" class="success">▶ Решить</button>
             </div>
         </div>
     </div>
